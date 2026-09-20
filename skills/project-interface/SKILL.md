@@ -3,7 +3,9 @@ name: project-interface
 description: 在具有 project.manifest.json 的项目中按语义节点修改，执行严格节点边界与 Gateway Flow 分支、独立评审和串行合并，并判断任务结束时的地图同步。
 ---
 
-先读取项目根目录的 `AGENTS.md` 与 `.bootstrap/interface-spec.md`；
+先确定角色：被指派为 Review Subagent 时，跳过下方语义修改步骤，直接执行 Gateway Flow 的
+Reviewer 契约，仅使用五类评审包，不自行读取 manifest、代码库或 Coder 会话。
+其他角色先读取项目根目录的 `AGENTS.md` 与 `.bootstrap/interface-spec.md`；
 本 skill 的路径均相对于项目根目录。若未初始化，停止地图操作并说明缺少的文件。
 
 1. 从 `project.manifest.json` 定位 Product、Feature / User Flow、Capability；追踪 contains、precedes、depends_on、data_flow 与 metadata，再读代码核实证据。HTML 只是 Codebase → Manifest → HTML 链的输出。

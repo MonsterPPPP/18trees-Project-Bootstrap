@@ -44,4 +44,23 @@ archify 原生 `visual-check` 在本机 Edge 提前退出，未得到成功收�
 Strict Node Boundary、代码证据和语义同步判断仍由 Agent 执行，工具不自动证明这些语义事实。
 阅读完整四层索引需要纵向滚动；验收未宣称整页索引可放入一屏。
 
-下一步（1 分钟）：离线打开 `artifacts/synthetic-map.html`，点击「草稿管理」查看共享能力。
+**Gateway Flow 追加验收**
+
+2026-09-20：规范、AGENTS.md 模板与现有项目 skill 增加 Gateway Flow；没有新增工具、
+自动化脚本、依赖或业务实现。初始化文件数仍为 13，原有地图生成与同步协议不变。
+
+| 验收项 | 实际结果 |
+|---|---|
+| 规范完整性 | 接口规范和 AGENTS.md 模板均包含 10 节：分支、独立 Review、Ready 顺序、最新 main 验证、冲突回路、角色、人工开关与 main 保护 |
+| 新项目安装 | 在全新 TemporaryDirectory 内执行 CLI 初始化；逐字节比较安装的 AGENTS.md、接口规范与两份 skill，均等于仓库源文件；核对十节与关键 gate；地图一致性通过 |
+| 幂等与回归 | 相同 CLI 再执行新增 0 个文件；`python -m unittest discover -s tests -v` 为 9/9；项目 skill 的 quick_validate 通过 |
+| 合成 Review A | 不继承会话的独立 Subagent，输入仅含五类评审资料；单节点说明修正得到 PASS，修改要求为无 |
+| 合成 Review B | 另一个干净上下文收到额外修改重试实现的 Diff，得到 REQUEST_CHANGES；指出 Strict Node Boundary 越界，要求移除越界改动、补充验证命令并重新评审 |
+
+两次契约演练使用合成任务、Diff 与测试记录作为输入，不代表运行了业务代码测试；
+Reviewer 未收到预期判定或 Coder 结论，仅只读规范并给出决定。
+样例说明参见 [接口规范](interface-spec.md) 的 Review Subagent 独立执行契约。
+本次没有远端仓库配置，不能验证服务端分支保护或托管 Merge Queue；规范不声称初始化会配置这些服务。
+首次初始化演练使用的较长示例名触发 archify 既有宽度校验；改用「合成验收」后通过，未改动渲染器。
+
+下一步（1 分钟）：打开 `templates/AGENTS.md`，查看默认合并与 `require human merge` 开关。
