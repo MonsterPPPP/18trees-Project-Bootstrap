@@ -14,4 +14,73 @@
 `.claude/skills/project-interface/SKILL.md`。两份由 Bootstrap 安装，需保持一致。
 上游 skill 仅链接引用；可从链接单独安装，缺失时按接口规范工作并如实说明，禁止声称已加载。
 
-下一步（1 分钟）：打开 `docs/project/map.html`，选择产品或用户流程。
+**Git Workflow（Gateway Flow）· 1. 基本原则**
+
+`main ← Merge Queue ← Review Gate ← Task Branch ← Coding Agent`。
+所有开发任务默认从最新 main 创建独立短生命周期 Task Branch；Coding Agent 禁止直接修改、提交或 push main。
+
+**2. Task Branch**
+
+命名 `feat/<task>`、`fix/<task>`、`refactor/<task>`、`chore/<task>`；一个分支一个明确任务，
+生命周期尽可能短，合并后删除。按 ponytail 将修改限制在最小语义范围，继续遵守 Strict Node Boundary。
+
+**3. 自动 Code Review**
+
+`Human Task → Coding Agent → 实现 + 测试 → 自动启动 Review Subagent`，无需人额外触发。
+Reviewer 必须是独立干净上下文，只接收原始任务与验收、Semantic Node 与边界、当前代码 Diff、
+测试结果、ponytail 与 Project Bootstrap 规范，不继承 Coder 会话或判断。
+Reviewer 不改代码，只输出 PASS 或 REQUEST_CHANGES，加原因与修改要求；证据不足不得 PASS。
+`Review FAIL → Coding Agent 修改 → 重新测试 → 重新 Review`，直到通过或发现当前约束下无法完成。
+硬边界受阻立即停止；连续三次修复失败按交互规范停止并检查假设。
+
+**4. Review 检查范围**
+
+核对原始需求完成度、Semantic Node / Strict Node Boundary、ponytail 最小实现，
+排除不必要重构、依赖和复杂度；检查测试通过与必要风险覆盖、明显回归，
+以及 Semantic / Structural Change 后 manifest、地图与相关文档同步情况。
+无语义变化不强制更新地图；不得借同步或测试修改越过边界。
+
+**5. 默认 Merge 与人工开关**
+
+默认 `Review PASS → 自动进入 Merge Queue → 最终检查通过 → 自动 Merge 到 main`。
+人明确指定 `require human merge`（任务指令或长期规则）时，`Review PASS → WAIT_FOR_HUMAN_MERGE`，
+等待人最终合并；其余 Review、最新 main 验证、测试和串行要求不变。
+
+**6. 并行与队列顺序**
+
+不同分支可并行开发；Ready = 开发完成 + 本 Branch 测试通过 + Review PASS。
+先 Ready 先入队，不按分支创建时间；PASS 绑定当前 head，实现再改需重新测试与 Review。
+由托管队列或一个协调 Agent 串行处理队首，禁止多个 Coder 同时更新 main。
+
+**7. 增量 Merge**
+
+每个队首，尤其后入队分支，都要同步最新 main → 检查冲突 → 重新运行 Integration Checks → Merge。
+验证任务与最新 main 的组合；检查后 main 再变则重新验证，旧 Review PASS 不能作为无条件合并依据。
+有远端先获取最新 main；适配修改后必须重新 Review。
+
+**8. 冲突闭环**
+
+无冲突：`Sync latest main → Tests PASS → Merge`。
+冲突或集成测试失败：`Merge Queue FAIL → 移出 Queue → 返回原 Coding Agent → 基于最新 main 重新适配 → 测试 → 重新 Review → 重新进入 Merge Queue`。
+Reviewer 不得修复；重新 Ready 后按新顺序入队。前序任务仍在处理时，后续 Branch 等待，
+不提前强行解决尚未确定的冲突。适配需要越过 Strict Node Boundary 时停止并等待人重新定义边界。
+
+**9. 职责边界**
+
+| 角色 | 职责 |
+|---|---|
+| Coding Agent | 实现、测试、修复、解决冲突；不批准自己的 Review，不直接修改或 push main |
+| Review Agent | 独立判断 PASS / REQUEST_CHANGES；不修改、不合并 |
+| Merge Queue | 串行合并、最新 main 最终验证、清理已合并任务分支；失败交回 Coder |
+| Human | 下达任务、设定边界；仅明确要求时最终 Merge |
+
+Coder 修改、Reviewer 判断、Merge Queue 串行化；人类默认不承担重复 Review 与 Merge。
+
+**10. main 保护**
+
+main 为受保护分支，禁止 Coding Agent 直接 push；必须经过 Task Branch、Review Gate、必要测试，
+默认经 Merge Queue 合并，合并后删除 Task Branch。本 Bootstrap 不自动配置服务端保护或 CI；
+接入远端时按上述 gate 配置保护。缺 Reviewer、队列能力或权限时报告阻碍，不能绕过。
+完整规范与可独立执行的评审包、PASS / REQUEST_CHANGES 样例见 `.bootstrap/interface-spec.md`。
+
+下一步（1 分钟）：为当前语义任务选择一个 Task Branch 名称。
