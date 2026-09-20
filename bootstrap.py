@@ -189,6 +189,7 @@ def safe_json(value):
 
 def map_document(manifest, diagrams):
     escape = html.escape
+    node_names = {node["id"]: node["name"] for node in manifest["nodes"]}
     products = [node for node in manifest["nodes"] if node["layer"] == "product"]
     title = " / ".join(node["name"] for node in products)
     controls = "".join(f'<option value="{i}">{escape(d["spec"]["meta"]["title"])} · {i + 1}/{len(diagrams)}</option>' for i, d in enumerate(diagrams))
@@ -199,7 +200,7 @@ def map_document(manifest, diagrams):
             if node["layer"] != layer:
                 continue
             outgoing = [edge for edge in manifest["relationships"] if edge["from"] == node["id"]]
-            links = "".join(f'<p class="relation"><a href="#{escape(e["to"])}">{escape(e["label"])} → {escape(e["to"])}</a> <small>{e["kind"]}</small></p>' for e in outgoing)
+            links = "".join(f'<p class="relation"><a href="#{escape(e["to"])}">{escape(e["label"])} → {escape(node_names[e["to"]])}</a> <small>{e["kind"]}</small></p>' for e in outgoing)
             refs = escape(json.dumps(node["metadata"], ensure_ascii=False, sort_keys=True, indent=2))
             status = "规划中" if node["status"] == "planned" else "已实现"
             cards.append(f'<article id="{escape(node["id"])}" data-layer="{layer}"><small>{escape(node["id"])} · {status}</small><h3>{escape(node["name"])}</h3><p>{escape(node["summary"])}</p>{links}<details><summary>Agent metadata · 实现线索</summary><pre>{refs}</pre></details></article>')
@@ -278,6 +279,8 @@ def check_target(root, relative):
 
 
 def initialize(target, name, explicit=None):
+    if not (BASE / "templates/AGENTS.md").is_file():
+        raise ValueError("init 需要完整 Bootstrap 源仓库；请在源仓库运行 python bootstrap.py init <目标目录>。项目内使用 map / validate")
     root = Path(os.path.abspath(target))
     manifest = validate_manifest(starter(name))
     files = {relative: source.read_bytes() for relative, source in install_files().items()}
@@ -289,7 +292,10 @@ def initialize(target, name, explicit=None):
             raise ValueError(f"初始化冲突：{path} 已有不同内容，未写入任何文件。请用空目录初始化后人工合并")
     map_path = check_target(root, "docs/project/map.html")
     if map_path.exists():
-        validate_map(manifest, map_path)
+        try:
+            validate_map(manifest, map_path)
+        except (ValueError, KeyError, TypeError) as error:
+            raise ValueError(f"初始化冲突：{map_path} 已有地图不匹配，未写入任何文件。请用空目录初始化后人工合并；原因：{error}") from error
     else:
         files["docs/project/map.html"] = map_document(manifest, render_diagrams(manifest, explicit)).encode("utf-8")
     created = []

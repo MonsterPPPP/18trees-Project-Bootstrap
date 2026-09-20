@@ -1,0 +1,26 @@
+{
+  "$schema": "../schema/semantic-project.schema.json",
+  "schema_version": 1,
+  "nodes": [
+    {"id": "NODE:studio", "layer": "product", "name": "合成创作工作台", "summary": "演示产品语义；所有节点均为虚构规划，不包含业务代码。", "status": "planned", "metadata": {"references": []}},
+    {"id": "NODE:compose", "layer": "feature", "name": "编写草稿", "summary": "用户输入希望预览的内容。", "status": "planned", "metadata": {"references": []}},
+    {"id": "NODE:preview", "layer": "feature", "name": "预览内容", "summary": "用户检查内容是否符合预期。", "status": "planned", "metadata": {"references": []}},
+    {"id": "NODE:drafts", "layer": "capability", "name": "草稿管理", "summary": "保持草稿版本，支撑编写与预览两个功能。", "status": "planned", "metadata": {"references": [{"path": "synthetic/draft-store.txt", "symbols": ["DraftStore"], "evidence": "纯合成的预期实现位置，文件不存在；不代表已实现。"}]}},
+    {"id": "NODE:render", "layer": "capability", "name": "内容呈现", "summary": "将草稿转成用户可检查的预览。", "status": "planned", "metadata": {"references": []}},
+    {"id": "NODE:storage", "layer": "system", "name": "草稿存储层", "summary": "规划中的本地持久化边界。", "status": "planned", "metadata": {"references": []}},
+    {"id": "NODE:view", "layer": "system", "name": "预览展示层", "summary": "规划中的用户展示边界。", "status": "planned", "metadata": {"references": []}}
+  ],
+  "relationships": [
+    {"from": "NODE:studio", "to": "NODE:compose", "kind": "contains", "label": "编写入口"},
+    {"from": "NODE:studio", "to": "NODE:preview", "kind": "contains", "label": "预览入口"},
+    {"from": "NODE:compose", "to": "NODE:preview", "kind": "precedes", "label": "完成输入后检查内容"},
+    {"from": "NODE:compose", "to": "NODE:drafts", "kind": "contains", "label": "保存编辑内容"},
+    {"from": "NODE:preview", "to": "NODE:drafts", "kind": "contains", "label": "读取当前草稿"},
+    {"from": "NODE:preview", "to": "NODE:render", "kind": "contains", "label": "呈现内容"},
+    {"from": "NODE:drafts", "to": "NODE:storage", "kind": "contains", "label": "持久化草稿"},
+    {"from": "NODE:render", "to": "NODE:view", "kind": "contains", "label": "展示预览"},
+    {"from": "NODE:render", "to": "NODE:drafts", "kind": "depends_on", "label": "读取草稿版本"},
+    {"from": "NODE:storage", "to": "NODE:view", "kind": "data_flow", "label": "传递当前草稿内容"}
+  ],
+  "workflows": [{"id": "FLOW:create", "name": "从草稿到预览", "product": "NODE:studio", "steps": ["NODE:compose", "NODE:preview"]}]
+}

@@ -25,7 +25,13 @@
 'use strict';
 const projectData=JSON.parse(document.getElementById('project-data').textContent);
 const flow=document.getElementById('flow');
-function showFlow(){const index=Number(flow.value);document.getElementById('diagram').srcdoc=projectData.diagrams[index].html;document.getElementById('progress').textContent=`流程图 ${index+1} / ${projectData.diagrams.length}；长流程相邻页共享端点，顺序不丢失。`;}
+function showFlow(){
+  const index=Number(flow.value);
+  // Preserve the receipted archify source; remove optional remote font links only in the display copy.
+  const offline=projectData.diagrams[index].html.replace(/<link\b[^>]*href=["']https:\/\/fonts\.(?:googleapis|gstatic)\.com[^"']*["'][^>]*>/gi,'');
+  document.getElementById('diagram').srcdoc=offline;
+  document.getElementById('progress').textContent=`流程图 ${index+1} / ${projectData.diagrams.length}；长流程相邻页共享端点，顺序不丢失。`;
+}
 flow.addEventListener('change',showFlow);showFlow();
 </script>
 </body>
