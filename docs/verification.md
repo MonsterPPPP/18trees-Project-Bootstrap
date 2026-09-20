@@ -109,3 +109,32 @@ exclude 原字节和已评审任务提交均保留，项目只剩 `.git` 与 `lo
 已有地图渲染器与页面未变，不重复视觉测试；无生产部署。Git exclude 是本地可见性机制，不是强制提交拦截器。
 
 下一步（1 分钟）：打开 [中文使用手册](../MANUAL.md)，选择适合当前项目的初始化命令。
+
+
+**Agent 对话入口追加验收（2026-09-20）**
+
+本节对应 Agent-first 更新；前述 13/14 文件和单 worktree 限制属于旧版记录。
+新版 Local-only 使用 .project-bootstrap/ 与两个薄入口，Standard 增加 usage.md。
+
+| 验收项 | 本轮证据 |
+|---|---|
+| 工具链 | 20 项 unittest 通过；覆盖原 AGENTS/CLAUDE、现有文档/manifest、未提交任务、薄入口原文及后来编辑保留；skill 格式校验通过 |
+| 隔离与恢复 | 两个 worktree 分别安装、卸载，第三个 Standard 工作区的状态与暂存可见性保留；继承排除规则刷新；安装失败恢复文件与 Git 配置；拒绝跟踪文件/链接；旧版只显式卸载、不自动迁移 |
+| Codex 新会话 | 真实 codex exec 新会话读取原 AGENTS 标记 ORIGINAL_CODEX_CEDAR 和本地 BOOTSTRAP_LOCAL_MAPLE，正确报告 Local-only、Local-first 与 Source of Truth；只读执行，exit 0 |
+| Claude Code 新会话 | 按用户明确决定，本轮不要求该项验收，不再阻断交付；此前三次尝试因超时 / Connection error 未完成，不记为通过 |
+| 人类入口 | 真实 Codex 新会话只接收本地源码 URL 与一句安装请求，完成安装、规则读取、项目语义整理、地图校验和使用说明交付；MANUAL.md 同源安装为 usage.md |
+
+一句话演练使用合成文档空项目，无真实业务实现；因源码无 GitHub remote，用本地 file URL 验证 Agent 接收仓库入口的流程，未声称验证 GitHub 网络下载。
+最初受限沙箱缺少必要文件权限，Agent 正确报告失败且无残留；按本任务现有权限完成的会话输出 turn.completed。
+演练工具等待超时后核对原始事件，确认 Agent 已交付最终结果；另独立核对 verify-install、安装前后 diff/status 与预览/执行卸载。
+卸载后只剩原 .git、AGENTS.md、README.md、task.txt，原 dirty task 与 Git 配置恢复。
+
+用户调整本轮验收范围：“claude 不必验收了，既然codex能把话说清楚用完就行了，现在继续，越过claude的测试”。
+本轮客户端行为验收以 Codex 已通过的新会话与完整安装演练为准；保留通用规范及薄入口，不继续排查 Claude 环境。
+独立 Review 指出的部分写入截断风险已改为同目录临时文件写完后原子替换；
+新增模拟部分写入后 OSError 的测试，验证配置、原入口、任务 diff/status 和残留全部恢复。
+孤立 END 标记也在写入前拒绝，并验证无副作用。
+本轮没有修改客户端全局配置、凭据或系统执行策略，没有生产发布。
+此决定只取消本轮 Claude Code 行为验收要求，不将未完成的测试改记为通过，也不免除工具链测试、独立 Review 或合并前集成检查。
+
+下一步（1 分钟）：打开 README，将安装请求发给目标项目 Agent。

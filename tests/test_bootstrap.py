@@ -65,9 +65,9 @@ class BootstrapTests(unittest.TestCase):
     def test_init_then_manifest_then_map_and_portable_cli(self):
         with tempfile.TemporaryDirectory(prefix="bootstrap-e2e-") as temp:
             project = Path(temp) / "新项目 with spaces"
-            self.assertEqual(app.initialize(project, "空项目"), 13)
+            self.assertEqual(app.initialize(project, "空项目", bootstrap_mode="Standard"), 14)
             before = {p.relative_to(project): (p.read_bytes(), p.stat().st_mtime_ns) for p in project.rglob("*") if p.is_file()}
-            self.assertEqual(app.initialize(project, "空项目"), 0)
+            self.assertEqual(app.initialize(project, "空项目", bootstrap_mode="Standard"), 0)
             self.assertEqual(before, {p.relative_to(project): (p.read_bytes(), p.stat().st_mtime_ns) for p in project.rglob("*") if p.is_file()})
             self.assertEqual((project / ".agents/skills/project-interface/SKILL.md").read_bytes(), (project / ".claude/skills/project-interface/SKILL.md").read_bytes())
             manifest = project / "project.manifest.json"
@@ -85,24 +85,24 @@ class BootstrapTests(unittest.TestCase):
             project.mkdir()
             (project / "AGENTS.md").write_text("人的规则", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "冲突"):
-                app.initialize(project, "test")
+                app.initialize(project, "test", bootstrap_mode="Standard")
             self.assertEqual([p.name for p in project.iterdir()], ["AGENTS.md"])
             fresh = Path(temp) / "fresh"
             with self.assertRaisesRegex(ValueError, "archify"):
-                app.initialize(fresh, "test", str(Path(temp) / "missing"))
+                app.initialize(fresh, "test", str(Path(temp) / "missing"), bootstrap_mode="Standard")
             self.assertFalse(fresh.exists())
             blocked = Path(temp) / "blocked"
             blocked.mkdir()
             (blocked / "docs").write_text("文件不是目录")
             with self.assertRaisesRegex(ValueError, "应为目录"):
-                app.initialize(blocked, "test")
+                app.initialize(blocked, "test", bootstrap_mode="Standard")
             self.assertFalse((blocked / "AGENTS.md").exists())
             late = Path(temp) / "late-conflict"
             existing = late / ".claude/skills/project-interface/SKILL.md"
             existing.parent.mkdir(parents=True)
             existing.write_text("已有项目 skill", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "冲突"):
-                app.initialize(late, "test")
+                app.initialize(late, "test", bootstrap_mode="Standard")
             self.assertFalse((late / "AGENTS.md").exists())
             self.assertEqual(existing.read_text(encoding="utf-8"), "已有项目 skill")
 
@@ -121,7 +121,7 @@ class BootstrapTests(unittest.TestCase):
                                      (["--deployment-mode", "Production-direct"], "Production-direct")):
                 with self.subTest(option=option):
                     project = Path(temp) / str(len(list(Path(temp).iterdir())))
-                    command = [sys.executable, "-X", "utf8", str(app.BASE / "bootstrap.py"), "init", str(project)]
+                    command = [sys.executable, "-X", "utf8", str(app.BASE / "bootstrap.py"), "init", str(project), "--bootstrap-mode", "Standard"]
                     result = subprocess.run(command + option, input="", capture_output=True, text=True, encoding="utf-8")
                     self.assertEqual(result.returncode, 0, result.stderr)
                     agents = (project / "AGENTS.md").read_text(encoding="utf-8")
@@ -148,23 +148,14 @@ class BootstrapTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertFalse(invalid.exists())
 
-    def test_deployment_mode_interactive_cli(self):
-        with tempfile.TemporaryDirectory(prefix="deployment-choice-") as temp:
-            for index, (choice, expected) in enumerate((("", "Local-first"), ("1", "Local-first"), ("2", "Production-direct"))):
-                project = Path(temp) / str(index)
-                with self.subTest(choice=choice), patch.object(sys, "argv", ["bootstrap.py", "init", str(project), "--bootstrap-mode", "Standard"]), \
-                        patch.object(sys.stdin, "isatty", return_value=True), patch("builtins.input", return_value=choice) as prompt, \
-                        patch("builtins.print"):
-                    self.assertEqual(app.main(), 0)
-                    prompt.assert_called_once()
-                    self.assertIn(f"Deployment Mode: {expected}\n", (project / "AGENTS.md").read_text(encoding="utf-8"))
-            invalid = Path(temp) / "invalid"
-            with patch("builtins.input", return_value="typo"), patch("builtins.print"), self.assertRaisesRegex(ValueError, "无效 Deployment Mode"):
-                app.initialize(invalid, "test", interactive=True, bootstrap_mode="Standard")
-            self.assertFalse(invalid.exists())
-            with patch("builtins.input", side_effect=EOFError), patch("builtins.print"), self.assertRaisesRegex(ValueError, "选择未完成"):
-                app.initialize(invalid, "test", interactive=True, bootstrap_mode="Standard")
-            self.assertFalse(invalid.exists())
+    def test_cli_does_not_prompt_for_defaults(self):
+        with tempfile.TemporaryDirectory() as temp:
+            project = Path(temp) / "standard"
+            with patch.object(sys, "argv", ["bootstrap.py", "init", str(project), "--bootstrap-mode", "Standard"]), \
+                    patch.object(sys.stdin, "isatty", return_value=True), \
+                    patch("builtins.input", side_effect=AssertionError("Agent entry must not prompt")), patch("builtins.print"):
+                self.assertEqual(app.main(), 0)
+            self.assertIn("Deployment Mode: Local-first", (project / "AGENTS.md").read_text(encoding="utf-8"))
 
     def test_symlink_cannot_redirect_initialization(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -178,7 +169,7 @@ class BootstrapTests(unittest.TestCase):
                     raise
                 subprocess.run(["cmd", "/c", "mklink", "/J", str(project / "docs"), str(outside)], check=True, capture_output=True)
             with self.assertRaisesRegex(ValueError, "链接或 junction"):
-                app.initialize(project, "test")
+                app.initialize(project, "test", bootstrap_mode="Standard")
             self.assertEqual(list(outside.iterdir()), [])
 
     def test_long_workflows_preserve_every_transition(self):

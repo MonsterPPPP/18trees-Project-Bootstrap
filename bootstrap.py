@@ -263,6 +263,7 @@ def install_files():
         "CLAUDE.md": BASE / "templates/CLAUDE.md",
         "docs/project/overview.md": BASE / "templates/overview.md",
         "docs/project/rules.md": BASE / "templates/rules.md",
+        "docs/project/usage.md": BASE / "MANUAL.md",
         ".agents/skills/project-interface/SKILL.md": BASE / "skills/project-interface/SKILL.md",
         ".claude/skills/project-interface/SKILL.md": BASE / "skills/project-interface/SKILL.md",
         ".bootstrap/bootstrap.py": BASE / "bootstrap.py",
@@ -322,7 +323,7 @@ def local_contents(root):
     return files, directories
 
 
-def deinitialize(target, yes=False):
+def deinitialize_legacy(target, yes=False):
     root = Path(os.path.abspath(target))
     state_path = check_target(root, ".bootstrap/install-state.json")
     if not state_path.is_file():
@@ -362,133 +363,351 @@ def deinitialize(target, yes=False):
     return len(files)
 
 
+LOCAL_HOME = ".project-bootstrap"
+ENTRY_NAMES = ("AGENTS.override.md", "CLAUDE.local.md")
+LOCAL_PATHS = (LOCAL_HOME, *ENTRY_NAMES)
+ENTRY_BLOCKS = {
+    "AGENTS.override.md": ("\n<!-- BEGIN Project Bootstrap -->\n"
+        "先读取本项目原有 AGENTS.md（若存在），保留其全部规则；再读取 .project-bootstrap/AGENTS.md 与其中指向的项目 skill。\n"
+        "规则冲突不得静默覆盖；需要人裁决时说明具体冲突。\n<!-- END Project Bootstrap -->\n").encode("utf-8"),
+    "CLAUDE.local.md": ("\n<!-- BEGIN Project Bootstrap -->\n"
+        "保留原项目 CLAUDE.md / AGENTS.md 的规则；若存在 AGENTS.md，先读取。\n"
+        "@.project-bootstrap/AGENTS.md\n"
+        "读取上述入口指向的项目 skill；规则冲突不得静默覆盖。\n<!-- END Project Bootstrap -->\n").encode("utf-8"),
+}
+
+
+def git_output(root, *args, optional=False):
+    result = subprocess.run(["git", "-C", str(root), *args], capture_output=True, encoding="utf-8")
+    if result.returncode and not (optional and result.returncode == 1):
+        raise ValueError(f"Git 检查失败：{result.stderr.strip()}")
+    return result.stdout
+
+
+def local_git(root):
+    if Path(git_output(root, "rev-parse", "--show-toplevel").strip()).resolve() != root.resolve():
+        raise ValueError("Local-only 必须安装到 Git 工作区根目录")
+    gitdir = Path(git_output(root, "rev-parse", "--absolute-git-dir").strip())
+    common = Path(git_output(root, "rev-parse", "--path-format=absolute", "--git-common-dir").strip())
+    config = check_target(common, "config")
+    # Exact gitdir condition: no shared exclude, no global config or worktree extension.
+    pattern = gitdir.as_posix()
+    for char in ("[", "*", "?"):
+        if char in pattern:
+            raise ValueError("Git directory 含 glob 字符，不能安全绑定排除规则；请使用普通路径")
+    if any(c in pattern for c in '\n\r"'):
+        raise ValueError("Git directory 含不支持的字符；未修改项目")
+    include = (root / LOCAL_HOME / "git.config").as_posix()
+    if "\n" in include or "\r" in include:
+        raise ValueError("项目路径含换行，不能安全记录安装区块")
+    condition = "gitdir/i" if os.name == "nt" else "gitdir"
+    block = (f'\n# BEGIN Project Bootstrap {include}\n'
+             f'[includeIf "{condition}:{pattern}"]\n'
+             f'\tpath = {json.dumps(include, ensure_ascii=False)}\n'
+             f'# END Project Bootstrap {include}\n').encode("utf-8")
+    return config, block
+
+
+def check_local_paths(root):
+    if git_output(root, "ls-files", "--", *LOCAL_PATHS):
+        raise ValueError("Local-only 路径已被跟踪或暂存；不能覆盖规则或改动索引")
+    for relative in LOCAL_PATHS:
+        path = root / relative
+        check_target(root, relative + "/install-state.json" if relative == LOCAL_HOME else relative)
+        if path.is_dir():
+            for folder, dirs, files in os.walk(path, followlinks=False):
+                for name in dirs + files:
+                    item = Path(folder) / name
+                    if item.is_symlink() or (hasattr(item, "is_junction") and item.is_junction()):
+                        raise ValueError(f"Local-only 路径包含链接或 junction：{item}")
+
+
+def inherited_excludes(root):
+    """Read effective core.excludesFile without our conditional include's value."""
+    values = git_output(root, "config", "--null", "--show-origin", "--path", "--get-all",
+                        "core.excludesFile", optional=True).split("\0")
+    own = root / LOCAL_HOME / "git.config"
+    inherited = None
+    for origin, value in zip(values[::2], values[1::2]):
+        if origin.startswith("file:") and Path(origin[5:]).resolve() == own.resolve():
+            continue
+        inherited = value
+    if inherited is None:
+        source = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "git/ignore"
+    elif not inherited:
+        return b""
+    else:
+        source = Path(inherited).expanduser()
+        if not source.is_absolute():
+            source = root / source
+    if source.resolve().is_relative_to((root / LOCAL_HOME).resolve()):
+        raise ValueError("继承的排除文件指向 Bootstrap 自身；请恢复原 Git 配置")
+    return source.read_bytes() if source.is_file() else b""
+
+
+def local_exclude_bytes(root):
+    return inherited_excludes(root) + b"\n# Project Bootstrap local files\n" + b"\n".join(
+        ("/" + p + ("/" if p == LOCAL_HOME else "")).encode("utf-8") for p in LOCAL_PATHS) + b"\n"
+
+
+def local_sources():
+    return {
+        "AGENTS.md": BASE / "templates/AGENTS.md",
+        "docs/overview.md": BASE / "templates/overview.md",
+        "docs/rules.md": BASE / "templates/rules.md",
+        "docs/usage.md": BASE / "MANUAL.md",
+        "skills/project-interface/SKILL.md": BASE / "skills/project-interface/SKILL.md",
+        "bootstrap.py": BASE / "bootstrap.py",
+        "requirements.txt": BASE / "requirements.txt",
+        "interface-spec.md": BASE / "docs/interface-spec.md",
+        "schema/semantic-project.schema.json": BASE / "schema/semantic-project.schema.json",
+        "templates/map.html": BASE / "templates/map.html",
+    }
+
+
+def local_text(text):
+    # Templates describe root-relative paths; the local bundle owns its own namespace.
+    return (text.replace(".project-bootstrap/project.manifest.json", "@@LOCAL_MANIFEST@@")
+            .replace("../../.bootstrap/interface-spec.md", "../interface-spec.md")
+            .replace(".bootstrap/", LOCAL_HOME + "/")
+            .replace("docs/project/", LOCAL_HOME + "/docs/")
+            .replace("project.manifest.json", LOCAL_HOME + "/project.manifest.json")
+            .replace(".agents/skills/project-interface/", LOCAL_HOME + "/skills/project-interface/")
+            .replace(".claude/skills/project-interface/", LOCAL_HOME + "/skills/project-interface/")
+            .replace("根目录 `AGENTS.md`", "`.project-bootstrap/AGENTS.md`")
+            .replace("@@LOCAL_MANIFEST@@", ".project-bootstrap/project.manifest.json"))
+
+
+def verify_install(target):
+    root = Path(os.path.abspath(target))
+    check_local_paths(root)
+    home = root / LOCAL_HOME
+    state = read_json(home / "install-state.json")
+    if state.get("version") != 2 or state.get("bootstrap_mode") != "Local-only":
+        raise ValueError("不支持的安装记录；不猜测修复或卸载")
+    if set(state.get("entry_existed", {})) != set(ENTRY_NAMES) or not all(
+            isinstance(v, bool) for v in state["entry_existed"].values()):
+        raise ValueError("入口安装记录无效；未删除文件")
+    config, block = local_git(root)
+    if config.read_bytes().count(block) != 1:
+        raise ValueError("本地 Git 配置区块缺失或重复；请恢复原安装位置或配置")
+    for name, entry in ENTRY_BLOCKS.items():
+        path = root / name
+        if not path.is_file() or path.read_bytes().count(entry) != 1:
+            raise ValueError(f"本地入口区块缺失或被修改：{name}；请恢复区块")
+    for name in (*local_sources(), "project.manifest.json", "docs/map.html", "git.config", "git.exclude"):
+        if not (home / name).is_file():
+            raise ValueError(f"本地安装缺少 {name}；请备份后重新安装")
+    agents = (home / "AGENTS.md").read_text(encoding="utf-8")
+    if not re.search(r"^Bootstrap Mode: Local-only$", agents, re.M) or not re.search(
+            r"^Deployment Mode: (Local-first|Production-direct)$", agents, re.M):
+        raise ValueError("本地模式配置无效；请恢复 AGENTS.md 中的模式")
+    expected_config = local_config(root)
+    if (home / "git.config").read_bytes() != expected_config:
+        raise ValueError("本地 Git 排除配置被修改；请恢复安装配置")
+    exclude = home / "git.exclude"
+    before = exclude.read_bytes()
+    after = local_exclude_bytes(root)
+    try:
+        if before != after:
+            exclude.write_bytes(after)
+        effective = git_output(root, "config", "--path", "--get", "core.excludesFile").strip()
+        if Path(effective).resolve() != exclude.resolve():
+            raise ValueError("其他 Git 配置覆盖了本地排除；请先解决配置冲突")
+        visible = git_output(root, "ls-files", "--others", "--exclude-standard", "--", *LOCAL_PATHS)
+        if visible:
+            raise ValueError("Bootstrap 仍对 Git 可见：项目 ignore 规则覆盖了本地排除")
+        validate_map(validate_manifest(read_json(home / "project.manifest.json")), home / "docs/map.html")
+    except Exception:
+        if exclude.read_bytes() != before:
+            exclude.write_bytes(before)
+        raise
+    return state
+
+
+def local_config(root):
+    exclude = (root / LOCAL_HOME / "git.exclude").as_posix()
+    return f'[core]\n\texcludesFile = {json.dumps(exclude, ensure_ascii=False)}\n'.encode("utf-8")
+
+
+def atomic_bytes(path, data):
+    """A partial write must never truncate existing project rules or Git config."""
+    descriptor, name = tempfile.mkstemp(prefix=".bootstrap-write-", dir=path.parent)
+    os.close(descriptor)
+    temporary = Path(name)
+    try:
+        temporary.write_bytes(data)
+        if path.exists():
+            shutil.copymode(path, temporary)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def initialize_local(root, name, explicit, deployment_mode):
+    config, block = local_git(root)
+    check_local_paths(root)
+    home = root / LOCAL_HOME
+    if home.exists():
+        if not (home / "install-state.json").is_file():
+            raise ValueError("初始化冲突：.project-bootstrap 已存在但没有安装记录")
+        verify_install(root)
+        if deployment_mode and f"Deployment Mode: {deployment_mode}\n" not in (home / "AGENTS.md").read_text(encoding="utf-8"):
+            raise ValueError("初始化冲突：不能通过 init 改变部署模式")
+        return 0
+    mode = deployment_mode or "Local-first"
+    if mode not in DEPLOYMENT_MODES:
+        raise ValueError("无效 Deployment Mode")
+    entries = {name: (root / name).read_bytes() if (root / name).exists() else None for name in ENTRY_NAMES}
+    if any(value is not None and any(marker in value for marker in (
+            b"<!-- BEGIN Project Bootstrap -->", b"<!-- END Project Bootstrap -->")) for value in entries.values()):
+        raise ValueError("入口已有 Bootstrap 区块但安装记录缺失；请先核实旧安装")
+    before_config = config.read_bytes()
+    if block in before_config:
+        raise ValueError("Git 配置已有本安装区块；请先核实旧安装")
+    files = {name: source.read_bytes() for name, source in local_sources().items()}
+    for filename in ("AGENTS.md", "docs/overview.md", "docs/rules.md", "skills/project-interface/SKILL.md"):
+        files[filename] = local_text(files[filename].decode("utf-8")).replace("@@BOOTSTRAP_MODE@@", "Local-only").replace(
+            "@@DEPLOYMENT_MODE@@", mode).encode("utf-8")
+    manifest = validate_manifest(starter(name))
+    manifest["$schema"] = "schema/semantic-project.schema.json"
+    files["project.manifest.json"] = (encode(manifest) + "\n").encode("utf-8")
+    files["docs/map.html"] = map_document(manifest, render_diagrams(manifest, explicit)).encode("utf-8")
+    files["git.config"] = local_config(root)
+    files["git.exclude"] = local_exclude_bytes(root)
+    files["install-state.json"] = encode({"version": 2, "bootstrap_mode": "Local-only",
+        "entry_existed": {name: value is not None for name, value in entries.items()}}).encode("utf-8")
+    changed_entries = []
+    home_created = False
+    try:
+        home.mkdir()
+        home_created = True
+        # Install exclusion before exposing any entry or bundle file to git add.
+        (home / "git.config").write_bytes(files.pop("git.config"))
+        (home / "git.exclude").write_bytes(files.pop("git.exclude"))
+        if config.read_bytes() != before_config:
+            raise ValueError("Git 配置在安装期间发生变化；请串行重试")
+        atomic_bytes(config, before_config + block)
+        for relative, data in files.items():
+            path = home / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+        for entry, content in entries.items():
+            path = root / entry
+            if (path.read_bytes() if path.exists() else None) != content:
+                raise ValueError(f"入口在安装期间被修改：{entry}")
+            atomic_bytes(path, (content or b"") + ENTRY_BLOCKS[entry])
+            changed_entries.append(entry)
+        verify_install(root)
+    except Exception:
+        for entry in changed_entries:
+            content = (root / entry).read_bytes().replace(ENTRY_BLOCKS[entry], b"", 1)
+            if content or entries[entry] is not None:
+                atomic_bytes(root / entry, content)
+            else:
+                (root / entry).unlink()
+        if block in config.read_bytes():
+            atomic_bytes(config, config.read_bytes().replace(block, b"", 1))
+        if home_created:
+            shutil.rmtree(home)
+        raise
+    return len(files) + 2 + len(ENTRY_NAMES)
+
+
+def deinitialize_local(target, yes=False):
+    root = Path(os.path.abspath(target))
+    # Cleanup must work even when a changed ignore rule makes verify-install fail.
+    check_local_paths(root)
+    home = root / LOCAL_HOME
+    state = read_json(home / "install-state.json")
+    entries = state.get("entry_existed", {})
+    if (state.get("version") != 2 or state.get("bootstrap_mode") != "Local-only"
+            or set(entries) != set(ENTRY_NAMES) or not all(isinstance(v, bool) for v in entries.values())):
+        raise ValueError("安装记录无效；未删除文件")
+    config, block = local_git(root)
+    if config.read_bytes().count(block) != 1:
+        raise ValueError("Git 本地区块缺失或重复；请恢复后清理")
+    restored = {}
+    for entry in ENTRY_NAMES:
+        data = (root / entry).read_bytes()
+        if data.count(ENTRY_BLOCKS[entry]) != 1:
+            raise ValueError(f"入口区块缺失或被修改：{entry}；请先恢复区块")
+        restored[entry] = data.replace(ENTRY_BLOCKS[entry], b"", 1)
+    print("将清理 .project-bootstrap/ 全部本地编辑与生成物、两个入口中的 Bootstrap 区块及本 worktree 排除配置；保留原规则和任务改动")
+    if not yes:
+        print("当前仅预览；先备份需要保留的内容，获确认后加 --yes")
+        return 0
+    for entry, data in restored.items():
+        if data or entries[entry]:
+            atomic_bytes(root / entry, data)
+        else:
+            (root / entry).unlink()
+    atomic_bytes(config, config.read_bytes().replace(block, b"", 1))
+    shutil.rmtree(home)
+    print("本地 Bootstrap 已移除；原规则、其他 worktree 与任务改动保留")
+    return 1
+
+
+def deinitialize(target, yes=False):
+    if (Path(target) / LOCAL_HOME).exists():
+        return deinitialize_local(target, yes)
+    return deinitialize_legacy(target, yes)
+
+
 def initialize(target, name, explicit=None, deployment_mode=None, interactive=False, bootstrap_mode=None):
     if not (BASE / "templates/AGENTS.md").is_file():
-        raise ValueError("init 需要完整 Bootstrap 源仓库；请在源仓库运行 python bootstrap.py init <目标目录>。项目内使用 map / validate")
+        raise ValueError("init 需要完整 Bootstrap 源仓库；由 Agent 从源仓库执行")
     root = Path(os.path.abspath(target))
+    if (root / ".bootstrap/install-state.json").exists():
+        raise ValueError("检测到旧版 Local-only；请先备份本地编辑，确认后用旧版 deinit 卸载，再重新安装；不自动迁移")
     agents = check_target(root, "AGENTS.md")
     saved_agents = agents.read_text(encoding="utf-8") if agents.is_file() else ""
-    state_path = check_target(root, ".bootstrap/install-state.json")
     if bootstrap_mode is None:
-        saved_mode = re.search(r"^Bootstrap Mode: (Standard|Local-only)$", saved_agents, re.M)
-        if saved_mode:
-            bootstrap_mode = saved_mode[1]
-        elif interactive and not agents.exists():
-            try:
-                choice = input("Bootstrap Mode：1 = Standard（默认，提交项目）；2 = Local-only（仅本地，不进入 Git）[1]：").strip()
-            except EOFError as error:
-                raise ValueError("Bootstrap 模式选择未完成；请传 --bootstrap-mode Standard 或 Local-only") from error
-            bootstrap_mode = {"": "Standard", "1": "Standard", "2": "Local-only"}.get(choice, choice)
-        else:
-            bootstrap_mode = "Standard"
+        bootstrap_mode = "Standard" if (root / ".bootstrap/bootstrap.py").is_file() and re.search(
+            r"^Bootstrap Mode: Standard$", saved_agents, re.M) and not (root / LOCAL_HOME).exists() else "Local-only"
     if bootstrap_mode not in BOOTSTRAP_MODES:
-        raise ValueError("无效 Bootstrap Mode；请选择 Standard 或 Local-only")
-    if state_path.is_file():
-        state = read_json(state_path)
-        if state.get("bootstrap_mode") != "Local-only" or bootstrap_mode != "Local-only":
-            raise ValueError("初始化冲突：已有 Local-only 安装，不能通过 init 切换模式")
-        exclude = local_repository(root, installing=True)
-        if not exclude.is_file() or exclude.read_bytes().count(EXCLUDE_BLOCK) != 1:
-            raise ValueError("Local-only exclude 区块缺失或重复；请恢复后重试")
-        if deployment_mode and f"Deployment Mode: {deployment_mode}\n" not in saved_agents:
-            raise ValueError("初始化冲突：部署模式不同；请显式编辑 AGENTS.md，不使用 init 切换")
-        local_contents(root)
-        if "Bootstrap Mode: Local-only\n" not in saved_agents or any(not (root / p).is_file() for p in install_files()):
-            raise ValueError("Local-only 安装文件缺失或模式被修改；请先备份，再 deinit / init 重装")
-        return 0  # Existing local rules and generated maps are user-owned changes; preserve them.
-    exclude = None
-    exclude_before = b""
-    prior_dirs = []
+        raise ValueError("无效 Bootstrap Mode")
     if bootstrap_mode == "Local-only":
-        exclude = local_repository(root, installing=True)
-        local_contents(root)
-        for scope in LOCAL_SCOPES:
-            path = root / scope
-            if path.exists() and (not path.is_dir() or any(path.iterdir())):
-                raise ValueError(f"Local-only 初始化冲突：{path} 已存在；本地排除不能隐藏或接管已有项目内容")
-            for directory in (path, *path.parents):
-                if directory == root:
-                    break
-                if directory.is_dir():
-                    prior_dirs.append(directory.relative_to(root).as_posix())
-        exclude_before = exclude.read_bytes() if exclude.exists() else b""
-        if b"# BEGIN Project Bootstrap Local-only" in exclude_before:
-            raise ValueError("Local-only exclude 区块已存在但安装记录缺失；请先核实旧安装")
-    if deployment_mode is None:
-        if agents.is_file():
-            saved = re.search(r"^Deployment Mode: (Local-first|Production-direct)$", agents.read_text(encoding="utf-8"), re.M)
-            deployment_mode = saved[1] if saved else "Local-first"
-        elif interactive:
-            print("Deployment Mode：1 = Local-first（默认，仅 Local / Preview）；2 = Production-direct（长期授权，Deployment Check 全通过后自动部署生产，不再逐次确认）")
-            try:
-                choice = input("选择模式 [1]：").strip()
-            except EOFError as error:
-                raise ValueError("部署模式选择未完成；请用 --deployment-mode Local-first 或 Production-direct 重试") from error
-            deployment_mode = {"": "Local-first", "1": "Local-first", "2": "Production-direct"}.get(choice, choice)
-        else:
-            deployment_mode = "Local-first"
+        return initialize_local(root, name, explicit, deployment_mode)
+    if (root / LOCAL_HOME).exists():
+        raise ValueError("初始化冲突：已有 Local-only；不能用 init 切换模式")
+    saved = re.search(r"^Deployment Mode: (Local-first|Production-direct)$", saved_agents, re.M)
+    deployment_mode = deployment_mode or (saved[1] if saved else "Local-first")
     if deployment_mode not in DEPLOYMENT_MODES:
-        raise ValueError("无效 Deployment Mode；请选择 Local-first 或 Production-direct，未写入任何文件")
+        raise ValueError("无效 Deployment Mode")
     manifest = validate_manifest(starter(name))
     files = {relative: source.read_bytes() for relative, source in install_files().items()}
     files["AGENTS.md"] = files["AGENTS.md"].replace(b"@@DEPLOYMENT_MODE@@", deployment_mode.encode("utf-8"))
-    files["AGENTS.md"] = files["AGENTS.md"].replace(b"@@BOOTSTRAP_MODE@@", bootstrap_mode.encode("utf-8"))
-    files["project.manifest.json"] = (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
-    if exclude is not None:
-        files[".bootstrap/install-state.json"] = encode({"bootstrap_mode": "Local-only", "preexisting_dirs": sorted(set(prior_dirs)),
-                                                       "exclude_existed": exclude.exists()}).encode("utf-8")
-    # Preflight ALL paths before the first write. No merge or force mode.
+    files["AGENTS.md"] = files["AGENTS.md"].replace(b"@@BOOTSTRAP_MODE@@", b"Standard")
     for relative, data in files.items():
         path = check_target(root, relative)
         if path.exists() and path.read_bytes() != data:
-            raise ValueError(f"初始化冲突：{path} 已有不同内容，未写入任何文件。请用空目录初始化后人工合并")
+            raise ValueError(f"初始化冲突：{path} 已有不同内容，未写入任何文件")
+    files["project.manifest.json"] = (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    path = check_target(root, "project.manifest.json")
+    if path.exists() and path.read_bytes() != files["project.manifest.json"]:
+        raise ValueError("初始化冲突：manifest 已有不同内容")
     map_path = check_target(root, "docs/project/map.html")
     if map_path.exists():
-        try:
-            validate_map(manifest, map_path)
-        except (ValueError, KeyError, TypeError) as error:
-            raise ValueError(f"初始化冲突：{map_path} 已有地图不匹配，未写入任何文件。请用空目录初始化后人工合并；原因：{error}") from error
+        validate_map(manifest, map_path)
     else:
         files["docs/project/map.html"] = map_document(manifest, render_diagrams(manifest, explicit)).encode("utf-8")
     created = []
-    created_dirs = set()
     try:
-        if exclude is not None:
-            exclude.parent.mkdir(parents=True, exist_ok=True)
-            exclude.write_bytes(exclude_before + EXCLUDE_BLOCK)
         for relative, data in files.items():
             path = check_target(root, relative)
             if path.exists():
                 if path.read_bytes() != data:
-                    raise ValueError(f"初始化时文件被其他进程修改：{path}；停止写入")
+                    raise ValueError(f"初始化时文件被修改：{path}")
                 continue
-            for directory in path.parents:
-                if directory == root.parent:
-                    break
-                if not directory.exists():
-                    created_dirs.add(directory)
             path.parent.mkdir(parents=True, exist_ok=True)
             with path.open("xb") as stream:
                 created.append(path)
                 stream.write(data)
         validate_map(manifest, map_path)
-        if exclude is not None:
-            visible = subprocess.run(["git", "-C", str(root), "ls-files", "--others", "--exclude-standard", "--", *LOCAL_SCOPES],
-                                     capture_output=True, encoding="utf-8", check=True).stdout
-            if visible:
-                raise ValueError("项目忽略规则覆盖了本地 exclude，Bootstrap 仍对 Git 可见；初始化已回滚，请检查项目规则")
     except Exception:
-        # Only remove files created by this invocation, never pre-existing content.
         for path in reversed(created):
             path.unlink(missing_ok=True)
-        for directory in sorted(created_dirs, key=lambda p: len(p.parts), reverse=True):
-            if directory.exists() and not any(directory.iterdir()):
-                directory.rmdir()
-        if exclude is not None:
-            if exclude_before or json.loads(files[".bootstrap/install-state.json"])["exclude_existed"]:
-                exclude.write_bytes(exclude_before)
-            else:
-                exclude.unlink(missing_ok=True)
         raise
     return len(created)
 
@@ -503,10 +722,12 @@ def main():
     init.add_argument("--deployment-mode", choices=DEPLOYMENT_MODES,
                       help="部署模式：默认 Local-first；显式选择 Production-direct 即给予检查通过后自动部署生产的长期授权")
     init.add_argument("--bootstrap-mode", choices=BOOTSTRAP_MODES,
-                      help="落地模式：Standard（默认，提交项目）或 Local-only（Git 本地排除）")
+                      help="默认 Local-only（仅本地）；Standard 需用户明确选择")
     deinit = commands.add_parser("deinit", help="预览 Local-only 清理；加 --yes 删除本地 Bootstrap 与 exclude 区块")
     deinit.add_argument("target", type=Path)
     deinit.add_argument("--yes", action="store_true", help="确认删除全部本地 Bootstrap 产物，含后续编辑")
+    verify = commands.add_parser("verify-install", help="核对本地安装、刷新继承排除规则并验证地图")
+    verify.add_argument("target", type=Path)
     validate = commands.add_parser("validate", help="校验结构、引用和可选地图一致性")
     validate.add_argument("manifest", type=Path)
     validate.add_argument("--map", type=Path)
@@ -519,7 +740,10 @@ def main():
         if args.command == "init":
             count = initialize(args.target, args.name, args.archify, args.deployment_mode,
                                interactive=sys.stdin.isatty(), bootstrap_mode=args.bootstrap_mode)
-            print(f"初始化通过：新增 {count} 个文件。下一步（1 分钟）：打开 {args.target / 'docs/project/map.html'}")
+            print(f"初始化通过：新增 {count} 个文件。由 Agent 读取协作规则，返回项目使用说明和地图入口")
+        elif args.command == "verify-install":
+            verify_install(args.target)
+            print("本地安装、Git 隔离与地图一致性通过；客户端新会话加载需另行核实")
         elif args.command == "deinit":
             deinitialize(args.target, args.yes)
         else:
@@ -528,6 +752,11 @@ def main():
                 if args.output.resolve() == args.manifest.resolve():
                     raise ValueError("地图输出不能覆盖 manifest；请使用 docs/project/map.html")
                 for root in args.manifest.resolve().parents:
+                    if root.name == LOCAL_HOME and (root / "install-state.json").is_file():
+                        if not args.output.resolve().is_relative_to(root / "docs"):
+                            raise ValueError("Local-only 地图必须输出到 .project-bootstrap/docs/，避免进入 Git")
+                        check_target(root, str(args.output.absolute().relative_to(root)))
+                        break
                     if (root / ".bootstrap/install-state.json").is_file():
                         if not args.output.resolve().is_relative_to(root / "docs/project"):
                             raise ValueError("Local-only 地图必须输出到 docs/project/，避免进入 Git")

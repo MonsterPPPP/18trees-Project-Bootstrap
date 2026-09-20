@@ -18,28 +18,34 @@ Workflow 是有序且不重复节点的一次用户旅程；有重试循环时�
 
 **初始化与文件安全**
 
-`init` 仅从 Bootstrap 源仓库执行。目标项目自带的 `.bootstrap/bootstrap.py` 用于 `map` 和 `validate`。
-目标副本也支持 `deinit`（仅 Local-only）。
-`--bootstrap-mode Standard|Local-only` 选择 Git 可见性，默认 Standard；与部署模式独立。
-Local-only 需 Git 根目录且专用范围未被占用或跟踪。Git 查询实际 `info/exclude`，追加自身标记区块，
-不改 `.gitignore`；安装后验证全部产物均被排除，若被项目否定规则覆盖则回滚。
-排除文件在 worktree 间共享，Local-only 在安装前拒绝多个 worktree；需要并存时使用独立 clone。
-安装后先卸载再新增 worktree；误加 worktree 不阻止 deinit 清除共享规则。
-Local-only 为 14 个文件（含安装状态），Standard 仍为 13；不保存上游 skill 正文。
-重复 Local-only 安装仅核对模式、排除区块和安装文件，不覆盖后续编辑，不是升级器。
-所有新 Bootstrap 产物应写入专用范围；Local-only CLI 的 map 输出限制在 `docs/project/`。
-`deinit <目标>` 预览，`--yes` 删除专用文件与产物、清理新建空目录并移除自身 exclude 区块。
-卸载保留原有空目录与后追加的其他 exclude 条目，拒绝已跟踪文件及链接路径，不恢复真实任务提交。
-不并发初始化 / 卸载同一仓库；卸载前停止正在写本地地图或规则的任务。
-`init --deployment-mode Local-first|Production-direct` 将所选模式填入 AGENTS.md 模板的配置行。
-新项目在交互终端未传选项时提示选择，回车默认 Local-first；非交互调用默认 Local-first。
-Production-direct 需要用户主动选择，代表检查通过后自动生产部署的长期授权；不运行真实部署。
-重复初始化无选项时沿用已有 AGENTS.md 的模式，不重新询问。传不同模式仍按冲突处理，
-不覆盖长期配置；用户显式改变模式时编辑 AGENTS.md。实际 Deployment Check 在 `docs/project/rules.md` 自定义。
-初始化先构建候选文件并预检所有目标路径，再调用 archify，最后用独占创建写入。
-相同字节跳过，不同字节、目录占用、父路径不是目录、symlink / junction 均报错；
-不提供 `--force`，不覆盖已有文件。若写入失败，只清理本次新建文件，可能保留空目录。
-这不是多进程事务系统；请勿同时对同一目标目录初始化。
+人通过项目 Agent 安装，执行流程见 [INSTALL.md](../INSTALL.md)。CLI 是 Agent 的内部工具。
+init 仅在完整 Bootstrap 源仓库执行；目标内副本支持 map、validate、verify-install 与 deinit。
+默认 Local-only + Local-first，不交互询问；Standard 与 Production-direct 需用户明确选择。
+
+Local-only 安装在 .project-bootstrap/，两个根薄入口指向同一协作配置与 skill。
+原 AGENTS.md / CLAUDE.md 不修改；已有未跟踪薄入口只追加区块，原内容卸载时保留。
+Standard 保留既有路径，另增加 docs/project/usage.md；两种模式的手册均直接复制 MANUAL.md。
+重复本地安装执行 verify-install，不覆盖编辑；Standard 相同内容跳过、不同内容报冲突。
+旧版 Local-only 要先备份并经确认卸载，不自动迁移；源码保留旧版 deinit 路径。
+
+Git includeIf 根据当前实际 Git directory 绑定自有 config/exclude 文件，不影响其他 worktree。
+自有 exclude 复制有效 core.excludesFile 的规则（未配置时使用 Git 默认 XDG 路径），再添加 Bootstrap 范围；
+verify-install 重新读取继承规则并刷新，保留原全局配置、共享 info/exclude 和项目 .gitignore。
+排除刷新失败恢复刷新前内容。不能覆盖更高优先级的 Git 配置或项目否定 ignore 规则，发现可见性失败即报错。
+配置与薄入口先写同目录临时文件，再原子替换，部分写入不会截断原文件。
+安装失败删除本次文件和区块，恢复原入口；原未提交任务与索引不变。
+移动工作区会使绑定失效，verify-install 报错；移回原位置后卸载，再在新位置安装。
+Git directory 含 glob 或引号/换行等不能安全绑定的字符时拒绝；不通过模糊匹配扩大作用范围。
+同一仓库的安装与卸载串行执行；不声称提供并发事务或防人为强制添加机制。
+
+verify-install <目标> 核对本地状态、薄入口、模式、Git 排除和 manifest/map 一致性。
+它不证明实际业务语义、客户端自动发现或新会话行为。新增 worktree 后需要 Agent 接入并验证。
+map 的本地输出限制在 .project-bootstrap/docs/；后续生成物同样不能散落到任务目录。
+deinit <目标> 仅预览，确认后 --yes 删除专属目录、自有入口区块与条件配置；保留入口其他内容与其他配置。
+检测到跟踪/暂存文件、symlink / junction 或清理区块损坏时先停止；不修改索引或遍历外部目录。
+
+部署配置：Standard 位于根 AGENTS.md，Local-only 位于 .project-bootstrap/AGENTS.md。
+重复 init 不用于模式切换；用户明确改变授权时由 Agent 写回配置，原项目限制不能被默认值放宽。
 
 地图生成先在临时文件中完成 archify 交付与一致性验证，再原子替换指定 HTML。
 无效 manifest、缺失 renderer 或 archify 诊断失败不会替换旧地图。
