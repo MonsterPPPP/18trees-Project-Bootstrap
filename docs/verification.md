@@ -63,4 +63,22 @@ Reviewer 未收到预期判定或 Coder 结论，仅只读规范并给出决定�
 本次没有远端仓库配置，不能验证服务端分支保护或托管 Merge Queue；规范不声称初始化会配置这些服务。
 首次初始化演练使用的较长示例名触发 archify 既有宽度校验；改用「合成验收」后通过，未改动渲染器。
 
-下一步（1 分钟）：打开 `templates/AGENTS.md`，查看默认合并与 `require human merge` 开关。
+**Deployment 追加验收**
+
+2026-09-20：在现有初始化命令加入 Deployment Mode 选择，不新增工具、依赖、CI/CD 或业务实现。
+根 AGENTS.md 保存唯一模式值，`docs/project/rules.md` 保存项目自定义 Deployment Check。
+
+| 验收项 | 实际结果 |
+|---|---|
+| 默认与显式 CLI | 全新临时目录的无选项、显式 Local-first、显式 Production-direct 均成功；生成 AGENTS.md 与对应模式的完整模板一致，地图校验通过 |
+| 交互选择 | 经 CLI main 的 TTY 分支，用模拟终端输入验证回车 / 1 → Local-first、2 → Production-direct；无效输入与 EOF 拒绝写入 |
+| 长期配置与冲突 | 重复初始化保留已有模式且不再提问，含 Production-direct；传另一模式报冲突，原有文件字节与修改时间不变；非法 CLI 选项不创建目录 |
+| 规范与 Gateway Flow | 完整 4 节、两种流程、长期授权、不跳过检查、阶段分离与人工合并边界已进入规范 / 模板 / skill；未改变既有 Gateway Flow gate |
+| 回归与安装 | 11/11 测试通过，skill 格式校验通过；两种合成项目的 AGENTS.md、长期规则、完整规范和两份 skill 均核对来源，地图一致 |
+
+复现：`python -m unittest discover -s tests -v`，约 15 秒。
+本次本地样例为 `artifacts/deployment-local/AGENTS.md` 与 `artifacts/deployment-production/AGENTS.md`；
+均为合成验证项目，不含真实生产目标或部署凭据。仅验证配置安装与规范，不宣称执行了真实部署。
+已有地图渲染代码与页面模板未修改，未重复浏览器视觉验收。
+
+下一步（1 分钟）：打开 `artifacts/deployment-local/AGENTS.md`，定位 Deployment Mode 与 Deployment Check。

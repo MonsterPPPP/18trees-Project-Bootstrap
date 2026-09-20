@@ -19,6 +19,7 @@ except ImportError:
     raise SystemExit("缺少 jsonschema；运行 python -m pip install 'jsonschema>=4.23,<5'")
 
 BASE = Path(__file__).resolve().parent
+DEPLOYMENT_MODES = ("Local-first", "Production-direct")
 LAYERS = {"product": "Product", "feature": "Feature / User Flow",
           "capability": "Capability", "system": "System / Technical Layer"}
 
@@ -278,12 +279,29 @@ def check_target(root, relative):
     return target
 
 
-def initialize(target, name, explicit=None):
+def initialize(target, name, explicit=None, deployment_mode=None, interactive=False):
     if not (BASE / "templates/AGENTS.md").is_file():
         raise ValueError("init 需要完整 Bootstrap 源仓库；请在源仓库运行 python bootstrap.py init <目标目录>。项目内使用 map / validate")
     root = Path(os.path.abspath(target))
+    agents = check_target(root, "AGENTS.md")
+    if deployment_mode is None:
+        if agents.is_file():
+            saved = re.search(r"^Deployment Mode: (Local-first|Production-direct)$", agents.read_text(encoding="utf-8"), re.M)
+            deployment_mode = saved[1] if saved else "Local-first"
+        elif interactive:
+            print("Deployment Mode：1 = Local-first（默认，仅 Local / Preview）；2 = Production-direct（长期授权，Deployment Check 全通过后自动部署生产，不再逐次确认）")
+            try:
+                choice = input("选择模式 [1]：").strip()
+            except EOFError as error:
+                raise ValueError("部署模式选择未完成；请用 --deployment-mode Local-first 或 Production-direct 重试") from error
+            deployment_mode = {"": "Local-first", "1": "Local-first", "2": "Production-direct"}.get(choice, choice)
+        else:
+            deployment_mode = "Local-first"
+    if deployment_mode not in DEPLOYMENT_MODES:
+        raise ValueError("无效 Deployment Mode；请选择 Local-first 或 Production-direct，未写入任何文件")
     manifest = validate_manifest(starter(name))
     files = {relative: source.read_bytes() for relative, source in install_files().items()}
+    files["AGENTS.md"] = files["AGENTS.md"].replace(b"@@DEPLOYMENT_MODE@@", deployment_mode.encode("utf-8"))
     files["project.manifest.json"] = (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     # Preflight ALL paths before the first write. No merge or force mode.
     for relative, data in files.items():
@@ -326,6 +344,8 @@ def main():
     init.add_argument("target", type=Path)
     init.add_argument("--name", default="新项目")
     init.add_argument("--archify", help="外部 archify skill 目录或 bin/archify.mjs 路径")
+    init.add_argument("--deployment-mode", choices=DEPLOYMENT_MODES,
+                      help="部署模式：默认 Local-first；显式选择 Production-direct 即给予检查通过后自动部署生产的长期授权")
     validate = commands.add_parser("validate", help="校验结构、引用和可选地图一致性")
     validate.add_argument("manifest", type=Path)
     validate.add_argument("--map", type=Path)
@@ -336,7 +356,7 @@ def main():
     args = parser.parse_args()
     try:
         if args.command == "init":
-            count = initialize(args.target, args.name, args.archify)
+            count = initialize(args.target, args.name, args.archify, args.deployment_mode, interactive=sys.stdin.isatty())
             print(f"初始化通过：新增 {count} 个文件。下一步（1 分钟）：打开 {args.target / 'docs/project/map.html'}")
         else:
             manifest = validate_manifest(read_json(args.manifest))

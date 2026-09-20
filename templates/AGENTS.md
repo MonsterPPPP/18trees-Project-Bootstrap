@@ -83,4 +83,41 @@ main 为受保护分支，禁止 Coding Agent 直接 push；必须经过 Task Br
 接入远端时按上述 gate 配置保护。缺 Reviewer、队列能力或权限时报告阻碍，不能绕过。
 完整规范与可独立执行的评审包、PASS / REQUEST_CHANGES 样例见 `.bootstrap/interface-spec.md`。
 
-下一步（1 分钟）：为当前语义任务选择一个 Task Branch 名称。
+**Deployment · 项目长期配置**
+
+Deployment Mode: @@DEPLOYMENT_MODE@@
+
+此行是本项目部署模式的唯一配置源。每次任务主动读取，不重复询问当前模式，不擅自改变；
+用户可以显式修改此行。缺失或无效时不得推断生产授权，应说明配置问题。
+用户在初始化主动选择 Production-direct，即授予长期 Production Deployment 权限；
+一次长期授权替代每次部署前确认，后续任务检查全部通过即自动部署，不再次问是否部署。
+初始化选择 Local-first 或未指定模式，均不授予生产权限。
+
+**Deployment · 按模式执行**
+
+| 模式 | 完成开发后的行为 |
+|---|---|
+| Local-first（默认） | 完成修改 → 执行测试 → 启动 Local / Preview → 提供可查看入口 → 停止；不得自行进入 Production，只有用户明确提出部署生产环境才继续 |
+| Production-direct | 完成修改 → 执行测试 → 执行项目 Deployment Check → 检查全部通过 → 自动部署 Production；长期授权不代表跳过检查 |
+
+Local-first 适用于 UI / UX 调整、产品功能验证、尚需人工确认效果或生产风险较高的项目。
+Local-first 下单次明确生产请求不自动将模式改为 Production-direct。
+
+**Deployment Check · 项目自定义位置**
+
+在 `docs/project/rules.md` 的「Deployment Check」填写本项目的必要测试、Build、阻断检查、
+已有部署要求与执行入口。两种模式进入 Production 前都必须满足这些检查，不强制统一 CI/CD。
+未定义、未执行、结果缺失或有失败都不能视为通过；说明具体阻碍，不以询问是否部署代替修复。
+Local / Preview 启动方式与可查看入口也在该位置定义；启动后验证可访问再报告，不虚构成功。
+
+**Deployment · 与 Gateway Flow 衔接**
+
+`Development Complete → Testing / Deployment Check → Deployment Policy → Local / Preview / Production`。
+代码修改完成与部署是不同阶段。先完成开发与验证；Production 还必须完成 Gateway Flow 的
+Review Gate、Merge Queue / 人工合并及最终检查，再对实际待部署版本执行 Deployment Check。
+Production-direct 不绕过 `require human merge`，也不授权从未合并任务分支发布生产。
+Local / Preview 可以作为任务分支的查看入口，但不替代 Review / Merge，也不会触发 Production。
+若现有合并流水线会自动发布生产，Local-first 下须先按项目流程阻止该发布，不能借自动 Merge 绕过部署授权。
+无法分离时报告阻碍并保留分支，不能冒充已获得生产授权。
+
+下一步（1 分钟）：核对本文件的 Deployment Mode，并打开 `docs/project/rules.md` 填写部署检查入口。

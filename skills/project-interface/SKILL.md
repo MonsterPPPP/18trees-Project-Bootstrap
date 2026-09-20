@@ -1,6 +1,6 @@
 ---
 name: project-interface
-description: 在具有 project.manifest.json 的项目中按语义节点修改，执行严格节点边界与 Gateway Flow 分支、独立评审和串行合并，并判断任务结束时的地图同步。
+description: 在具有 project.manifest.json 的项目中按语义节点修改，执行严格节点边界、Gateway Flow 与项目 Deployment Mode，并判断任务结束时的地图同步。
 ---
 
 先确定角色：被指派为 Review Subagent 时，跳过下方语义修改步骤，直接执行 Gateway Flow 的
@@ -32,4 +32,14 @@ CLI 校验不证明语义证据正确，也不自动强制节点实现边界；�
 本 skill 是行为契约，不自动安装 CI、配置服务端保护或创建常驻队列服务。
 Reviewer 输出使用规范中的机器间判定格式；其他角色继续使用面向人的行动优先格式。
 
-下一步（1 分钟）：确认本次角色与语义边界；Coding Agent 选择 Task Branch，Reviewer 核对评审包。
+**Deployment 阶段**
+
+1. 非 Reviewer 角色主动读取根 AGENTS.md 的 `Deployment Mode` 与 `docs/project/rules.md` 的 Deployment Check；不重复询问模式，不擅自修改。初始化默认 Local-first，只有用户主动选择才可传 `--deployment-mode Production-direct`，不得代用户推断生产长期授权。
+2. 先完成开发与验证，再按 `Development Complete → Testing / Deployment Check → Deployment Policy → Local / Preview / Production` 推进。Gateway Flow 不变；Production 必须完成 Review / Merge，Production-direct 不能绕过 `require human merge` 或从未合并分支发布。
+3. Local-first：修改与测试完成后启动 Local / Preview，验证并提供可查看入口后停止；只有明确生产请求才继续 Production，且仍须通过 Deployment Check。单次生产请求不修改长期模式。
+4. Production-direct：初始化的一次长期授权替代每次部署前确认；后续任务对待部署版本执行必要测试、成功 Build、全部阻断检查与项目已有部署要求，全部通过即自动部署 Production，不再次询问是否部署。不强制统一 CI/CD，不把缺失、未执行或失败的检查当作通过。
+5. 配置、运行入口、权限或检查有具体阻碍时如实说明并处理；不伪造预览或部署成功。显式模式变更写回 AGENTS.md。Local-first 下若合并会触发自动生产发布，先按项目流程阻止该发布，不能分离则保留分支并报告；自动 Merge 不是生产授权。
+
+Reviewer 仅从评审包检查上述规则与实际变更是否一致，不启动环境或部署。
+
+下一步（1 分钟）：定位 AGENTS.md 的部署模式与项目 Deployment Check。

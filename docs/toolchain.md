@@ -19,6 +19,11 @@ Workflow 是有序且不重复节点的一次用户旅程；有重试循环时�
 **初始化与文件安全**
 
 `init` 仅从 Bootstrap 源仓库执行。目标项目自带的 `.bootstrap/bootstrap.py` 用于 `map` 和 `validate`。
+`init --deployment-mode Local-first|Production-direct` 将所选模式填入 AGENTS.md 模板的配置行。
+新项目在交互终端未传选项时提示选择，回车默认 Local-first；非交互调用默认 Local-first。
+Production-direct 需要用户主动选择，代表检查通过后自动生产部署的长期授权；不运行真实部署。
+重复初始化无选项时沿用已有 AGENTS.md 的模式，不重新询问。传不同模式仍按冲突处理，
+不覆盖长期配置；用户显式改变模式时编辑 AGENTS.md。实际 Deployment Check 在 `docs/project/rules.md` 自定义。
 初始化先构建候选文件并预检所有目标路径，再调用 archify，最后用独占创建写入。
 相同字节跳过，不同字节、目录占用、父路径不是目录、symlink / junction 均报错；
 不提供 `--force`，不覆盖已有文件。若写入失败，只清理本次新建文件，可能保留空目录。
