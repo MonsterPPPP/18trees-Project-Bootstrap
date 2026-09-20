@@ -5,8 +5,21 @@ description: 在具有 project.manifest.json 的项目中按语义节点修改�
 
 先确定角色：被指派为 Review Subagent 时，跳过下方语义修改步骤，直接执行 Gateway Flow 的
 Reviewer 契约，仅使用五类评审包，不自行读取 manifest、代码库或 Coder 会话。
-其他角色先读取项目根目录的 `AGENTS.md` 与 `.bootstrap/interface-spec.md`；
+其他角色先读取项目根目录的 `AGENTS.md` 与 `.bootstrap/interface-spec.md`，识别 Bootstrap Mode；
 本 skill 的路径均相对于项目根目录。若未初始化，停止地图操作并说明缺少的文件。
+
+工程组合为 Ponytail + [Stop That Shit](https://github.com/lennney/stop-that-shit) + Semantic Boundary。
+最小充分修改不等于最少代码；必要调用方、迁移与测试需完整完成，禁止无需求复杂度、范围膨胀、
+未来假设与重复验证 / Agent 调用。Reviewer 在既有 gate 中按 STS 五项（Scope Creep、无需求复杂度、
+违反明确边界、重复验证/Agent 调用、未来假设机制）判断，不优化或修改代码。完整定义见 Engineering Protocol。
+
+Local-only 下 Bootstrap 产物不得暂存、提交或进入 PR；只在 AGENTS.md 列出的专用范围内保存
+manifest、地图、规则、skills 与新生成报告。不得强制添加；每次提交核对 staged diff 只含真实任务。
+Local-only 与部署 Local-first 不同；Gateway Flow、Deployment 和语义边界仍生效，不重复问模式。
+初始化使用源仓库 `python bootstrap.py init <目标> --bootstrap-mode Local-only --deployment-mode Local-first`，
+目标须已是单工作区的 Git 根目录；不能接管已有占用路径。新增 linked worktree 前先 deinit，
+需要并存时用独立 clone。退场在目标运行 `python .bootstrap/bootstrap.py deinit .`
+先预览，获人确认后加 `--yes` 清理；不擅自删除人的长期规则或真实任务文件。
 
 1. 从 `project.manifest.json` 定位 Product、Feature / User Flow、Capability；追踪 contains、precedes、depends_on、data_flow 与 metadata，再读代码核实证据。HTML 只是 Codebase → Manifest → HTML 链的输出。
 2. 按 [ponytail](https://github.com/DietrichGebert/ponytail) 选择最少语义节点、最小影响的正确修改。明确「只修改 NODE:X」是硬边界，不自动包含子节点或依赖；边界外只读。若必须修改其他节点，停止并说明原因，等人重新定义边界，不通过修改 metadata 扩权。

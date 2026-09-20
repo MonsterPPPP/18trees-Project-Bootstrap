@@ -7,6 +7,12 @@
 [i-have-adhd](https://github.com/ayghri/i-have-adhd)，地图采用
 [archify](https://github.com/tt-a1i/archify)。上游正文不入库。
 
+Bootstrap Mode: Standard
+
+Engineering Protocol 同时使用 Ponytail + [Stop That Shit](https://github.com/lennney/stop-that-shit) + Semantic Boundary。
+采用完成需求所需的最小充分修改，必要调用方、迁移与测试不能省略；禁止无需求扩张与重复工作。
+Reviewer 按 STS 五项审查，只报告不改代码；证据足够后不额外启动重复确认 Agent。
+
 长期规则写入本文件或规范文档。完成有效任务后判断是否存在语义或结构变化；
 不按文件或 commit 自动同步地图。明确的 `只修改 NODE:X` 是硬边界。
 小步语义化提交；运行 `python -m unittest discover -s tests -v` 验证工具链。

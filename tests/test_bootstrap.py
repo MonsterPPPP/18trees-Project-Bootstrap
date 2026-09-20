@@ -126,7 +126,7 @@ class BootstrapTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 0, result.stderr)
                     agents = (project / "AGENTS.md").read_text(encoding="utf-8")
                     template = (app.BASE / "templates/AGENTS.md").read_text(encoding="utf-8")
-                    self.assertEqual(agents, template.replace("@@DEPLOYMENT_MODE@@", expected))
+                    self.assertEqual(agents, template.replace("@@DEPLOYMENT_MODE@@", expected).replace("@@BOOTSTRAP_MODE@@", "Standard"))
                     self.assertIn(f"Deployment Mode: {expected}\n", agents)
                     self.assertNotIn("@@DEPLOYMENT_MODE@@", agents)
                     rules = (project / "docs/project/rules.md").read_text(encoding="utf-8")
@@ -152,7 +152,7 @@ class BootstrapTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="deployment-choice-") as temp:
             for index, (choice, expected) in enumerate((("", "Local-first"), ("1", "Local-first"), ("2", "Production-direct"))):
                 project = Path(temp) / str(index)
-                with self.subTest(choice=choice), patch.object(sys, "argv", ["bootstrap.py", "init", str(project)]), \
+                with self.subTest(choice=choice), patch.object(sys, "argv", ["bootstrap.py", "init", str(project), "--bootstrap-mode", "Standard"]), \
                         patch.object(sys.stdin, "isatty", return_value=True), patch("builtins.input", return_value=choice) as prompt, \
                         patch("builtins.print"):
                     self.assertEqual(app.main(), 0)
@@ -160,10 +160,10 @@ class BootstrapTests(unittest.TestCase):
                     self.assertIn(f"Deployment Mode: {expected}\n", (project / "AGENTS.md").read_text(encoding="utf-8"))
             invalid = Path(temp) / "invalid"
             with patch("builtins.input", return_value="typo"), patch("builtins.print"), self.assertRaisesRegex(ValueError, "无效 Deployment Mode"):
-                app.initialize(invalid, "test", interactive=True)
+                app.initialize(invalid, "test", interactive=True, bootstrap_mode="Standard")
             self.assertFalse(invalid.exists())
             with patch("builtins.input", side_effect=EOFError), patch("builtins.print"), self.assertRaisesRegex(ValueError, "选择未完成"):
-                app.initialize(invalid, "test", interactive=True)
+                app.initialize(invalid, "test", interactive=True, bootstrap_mode="Standard")
             self.assertFalse(invalid.exists())
 
     def test_symlink_cannot_redirect_initialization(self):

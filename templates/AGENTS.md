@@ -1,5 +1,20 @@
 # 项目协作入口
 
+Bootstrap Mode: @@BOOTSTRAP_MODE@@
+
+每次任务开始读取本文件的 Bootstrap Mode，不重复询问。Standard 产物正常随项目提交；
+Local-only 用于合作 / 他人项目，全部 Bootstrap 文件只在本地，对 Agent 可见、可读，
+不得加入暂存区、提交、分支或 PR，不得 `git add -f`，任务分支仅含真正任务内容。
+Local-only 通过 Git 本地 info/exclude 排除，不改 `.gitignore`。专用范围是 AGENTS.md、CLAUDE.md、
+project.manifest.json、.bootstrap/、docs/project/ 与 .agents/skills/project-interface/、.claude/skills/project-interface/。
+所有后续 Bootstrap 报告、地图、截图与配置必须放入上述专用范围，不得放入业务路径，
+也不得将业务文件放入专用目录。模式配置和安装记录同样不进入 Git。
+Local-only 管 Bootstrap 的 Git 可见性，Deployment 的 Local-first 管部署去向；两者不同。
+Local-only 下 Git Workflow、Deployment、STS 与语义修改协议完全照常生效。
+Local-only 仅支持单工作区仓库；新增 linked worktree 前先 deinit，需要并存时使用独立 clone。
+卸载先 `python .bootstrap/bootstrap.py deinit .` 预览，确认后用 `--yes`；删除全部本地 Bootstrap
+编辑与生成物，保留真实任务改动。不要直接清空目录或手动改 Git 跟踪状态。
+
 按 Product → Feature / User Flow → Capability → System / Technical Layer 理解项目。
 先读 `docs/project/overview.md` 和 `.bootstrap/interface-spec.md`，再读取
 `project.manifest.json`。人主要操作前三层，例如「修改 Auth / Session Management」。
@@ -13,6 +28,27 @@
 加载项目 skill：Codex 使用 `.agents/skills/project-interface/SKILL.md`，Claude Code 使用
 `.claude/skills/project-interface/SKILL.md`。两份由 Bootstrap 安装，需保持一致。
 上游 skill 仅链接引用；可从链接单独安装，缺失时按接口规范工作并如实说明，禁止声称已加载。
+
+**Engineering Protocol · Ponytail + Stop That Shit + Semantic Boundary**
+
+工程同时应用 [ponytail](https://github.com/DietrichGebert/ponytail) 与
+[stop-that-shit](https://github.com/lennney/stop-that-shit)：前者指导最小实现，后者约束何时停止额外工作。
+
+> 所有 Coding Agent 默认遵循 Ponytail + Stop That Shit：在完整满足当前需求的前提下，采用最小充分实现，禁止无需求的范围膨胀、未来假设、防御性复杂度和重复工作；Review Agent 使用相同原则检查是否存在越界，但不得自行修改代码。
+
+最小充分修改 ≠ 最少代码。完成必要调用方、迁移、测试与文档，即使 diff 更大；
+但必要工作不能突破 Strict Node Boundary，涉及边界外先停止并请人重定义。
+「修改登录页错误提示」不附带 Auth Service 重构、未来 abstraction、无用 checksum / validation、
+重复 Subagent 确认或修完继续“顺便优化”。必须的独立 Review 保留，证据足够后停止重复检查。
+不要仅凭名称删除既有保护；STS 正文仅链接引用，不自动安装 Guard hooks。
+
+Reviewer 将以下五项纳入既有 Review Gate，只报告 PASS / REQUEST_CHANGES、原因与修改要求，不自行改代码：
+
+1. 有没有 Scope Creep？
+2. 有没有无需求复杂度？
+3. 有没有违反用户明确边界？
+4. 有没有重复验证 / 重复 Agent 调用？
+5. 有没有为了未来假设而增加机制？
 
 **Git Workflow（Gateway Flow）· 1. 基本原则**
 
