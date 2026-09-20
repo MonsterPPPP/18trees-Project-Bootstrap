@@ -1,7 +1,9 @@
 # Project Bootstrap
 
+**[打开中文使用手册：初始化 → 日常协作 → Local-only 退场](MANUAL.md)**
+
 ```powershell
-python bootstrap.py init ../my-project --name "我的产品" --archify /path/to/archify
+python bootstrap.py init ../my-project --name "我的产品" --bootstrap-mode Standard --deployment-mode Local-first --archify /path/to/archify
 ```
 
 用 Product、Feature、Capability 与 Agent 协作。初始化后打开目标项目的
@@ -34,12 +36,17 @@ python bootstrap.py init ../my-project --name "我的产品" --archify /path/to/
 新目录自动生成 `planned` 产品与待定义流程，不推测业务已实现。
 初始化相同内容可重复执行，第二次新增 0 个文件；已有不同内容时预检失败，保留原文件，
 不自动追加或合并 AGENTS.md。项目已修改后请在空目录初始化并人工合并需要的内容；`init` 不是升级器。
-上游三个 skill 只引用链接，不自动下载或复制其正文；目标项目安装的是本 Bootstrap 的接口 skill。
+上游 skill 只引用链接，不自动下载或复制其正文；目标项目安装的是本 Bootstrap 的接口 skill。
 在新会话中让 Codex 或 Claude Code 加载项目 skill；本项目验证了文件格式、位置与内容一致性，未自动启动两个客户端执行行为评测。
 
 **初始化时选择 Deployment Mode（约 1 分钟）**
 
-交互终端会提示选择，回车采用 Local-first；非交互调用默认 Local-first。也可通过参数明确选择：
+初始化先选落地方式：Standard 默认随项目提交；合作 / 他人项目使用 `--bootstrap-mode Local-only`，
+用 Git 本地 exclude 隐藏全部 Bootstrap 产物，不改项目 `.gitignore`。目标需为 Git 根目录且专用路径无占用。
+本地配置位于 AGENTS.md；Local-only 重复初始化保留本地编辑。清理用 `deinit <目标>` 预览，确认后加 `--yes`。
+Local-only 的 Git 可见性与 Local-first 的部署去向是两项独立选择，详见 [手册](MANUAL.md)。
+
+Deployment 选择中回车采用 Local-first；非交互调用默认 Local-first。也可通过参数明确选择：
 
 ```powershell
 python bootstrap.py init ../local-project --deployment-mode Local-first
@@ -96,8 +103,8 @@ POSIX shell 使用 `export ARCHIFY_HOME=/path/to/archify`。测试会真实调�
 | [合成 manifest](examples/synthetic.manifest.json) | 四层、共享 Capability、依赖与数据流 |
 | [验收记录](docs/verification.md) | 可复现命令与验证范围 |
 
-交互基于 [i-have-adhd](https://github.com/ayghri/i-have-adhd)，工程基于
-[ponytail](https://github.com/DietrichGebert/ponytail)，可视化基于
+交互基于 [i-have-adhd](https://github.com/ayghri/i-have-adhd)，Engineering Protocol 基于
+[ponytail](https://github.com/DietrichGebert/ponytail) + [Stop That Shit](https://github.com/lennney/stop-that-shit)，可视化基于
 [archify](https://github.com/tt-a1i/archify)。不新增竞争性的编码规范。
 
 下一步（1 分钟）：打开生成的地图，选一个 Feature，用一句话描述希望改变的用户结果。

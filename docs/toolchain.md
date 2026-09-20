@@ -19,6 +19,16 @@ Workflow 是有序且不重复节点的一次用户旅程；有重试循环时�
 **初始化与文件安全**
 
 `init` 仅从 Bootstrap 源仓库执行。目标项目自带的 `.bootstrap/bootstrap.py` 用于 `map` 和 `validate`。
+目标副本也支持 `deinit`（仅 Local-only）。
+`--bootstrap-mode Standard|Local-only` 选择 Git 可见性，默认 Standard；与部署模式独立。
+Local-only 需 Git 根目录且专用范围未被占用或跟踪。Git 查询实际 `info/exclude`，追加自身标记区块，
+不改 `.gitignore`；安装后验证全部产物均被排除，若被项目否定规则覆盖则回滚。
+Local-only 为 14 个文件（含安装状态），Standard 仍为 13；不保存上游 skill 正文。
+重复 Local-only 安装仅核对模式、排除区块和安装文件，不覆盖后续编辑，不是升级器。
+所有新 Bootstrap 产物应写入专用范围；Local-only CLI 的 map 输出限制在 `docs/project/`。
+`deinit <目标>` 预览，`--yes` 删除专用文件与产物、清理新建空目录并移除自身 exclude 区块。
+卸载保留原有空目录与后追加的其他 exclude 条目，拒绝已跟踪文件及链接路径，不恢复真实任务提交。
+不并发初始化 / 卸载同一仓库；卸载前停止正在写本地地图或规则的任务。
 `init --deployment-mode Local-first|Production-direct` 将所选模式填入 AGENTS.md 模板的配置行。
 新项目在交互终端未传选项时提示选择，回车默认 Local-first；非交互调用默认 Local-first。
 Production-direct 需要用户主动选择，代表检查通过后自动生产部署的长期授权；不运行真实部署。
