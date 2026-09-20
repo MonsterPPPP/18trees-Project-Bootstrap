@@ -555,6 +555,7 @@ def initialize_local(root, name, explicit, deployment_mode):
         files[filename] = local_text(files[filename].decode("utf-8")).replace("@@BOOTSTRAP_MODE@@", "Local-only").replace(
             "@@DEPLOYMENT_MODE@@", mode).encode("utf-8")
     manifest = validate_manifest(starter(name))
+    manifest["$schema"] = "schema/semantic-project.schema.json"
     files["project.manifest.json"] = (encode(manifest) + "\n").encode("utf-8")
     files["docs/map.html"] = map_document(manifest, render_diagrams(manifest, explicit)).encode("utf-8")
     files["git.config"] = local_config(root)

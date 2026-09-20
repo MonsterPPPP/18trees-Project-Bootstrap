@@ -41,6 +41,11 @@ class LocalOnlyTests(unittest.TestCase):
             repository(root)
             config = root / ".git/config"
             config_before = config.read_bytes()
+            (root / "docs/project").mkdir(parents=True)
+            (root / "docs/project/overview.md").write_text("existing project document")
+            (root / "project.manifest.json").write_text("existing unrelated manifest")
+            git(root, "add", "docs", "project.manifest.json")
+            git(root, "commit", "-m", "test: preserve existing documents")
             original = {p: (root / p).read_bytes() for p in ("AGENTS.md", "CLAUDE.md")}
             for name in app.ENTRY_NAMES:
                 (root / name).write_bytes(b"original local preference without newline")
@@ -52,10 +57,13 @@ class LocalOnlyTests(unittest.TestCase):
             self.assertEqual(git(root, "diff"), before_diff)
             self.assertEqual(git(root, "diff", "--cached"), b"")
             self.assertEqual(original, {p: (root / p).read_bytes() for p in original})
+            self.assertEqual((root / "docs/project/overview.md").read_text(), "existing project document")
+            self.assertEqual((root / "project.manifest.json").read_text(), "existing unrelated manifest")
             (bundle(root) / "docs/rules.md").write_text("local customization")
             self.assertEqual(app.initialize(root, "合成"), 0)
             self.assertEqual((bundle(root) / "docs/rules.md").read_text(), "local customization")
             self.assertEqual((bundle(root) / "docs/usage.md").read_bytes(), (app.BASE / "MANUAL.md").read_bytes())
+            self.assertTrue((bundle(root) / app.read_json(bundle(root) / "project.manifest.json")["$schema"]).is_file())
             self.assertEqual(cli(root, "verify-install", str(root)).returncode, 0)
             git(root, "switch", "-c", "fix/synthetic-message")
             git(root, "add", ".")
