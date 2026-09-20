@@ -225,4 +225,62 @@ REQUEST_CHANGES
 修改要求：由 Coding Agent 移除本次越界改动并重新验证；若验收必须修改重试实现，停止修改，说明涉及 NODE:retry-engine 的原因，等待人重新定义边界后再测试和 Review。
 ```
 
-下一步（1 分钟）：为当前任务确定一个语义范围和 Task Branch 名称。
+**Deployment 规范 · 1. 初始化时选择部署模式**
+
+项目初始化时选择 Deployment Mode，默认 **Local-first**。
+交互终端未传选项时显示两种模式，回车选择 Local-first；脚本 / 非交互调用未传选项时使用 Local-first。
+也可明确传 `--deployment-mode Local-first` 或 `--deployment-mode Production-direct`。
+Agent 代用户初始化时不得自行选择 Production-direct，必须有用户的主动选择；
+命令参数或交互选择是该长期授权的落盘方式，初始化本身不执行部署。
+
+| 模式 | 流程与授权 |
+|---|---|
+| Local-first（默认） | Agent 完成修改 → 执行测试 → 启动 Local / Preview 环境 → 提供可查看入口 → 停止。Agent 不得自行进入 Production；只有用户明确提出部署生产环境后，才可以继续 Production Deployment |
+| Production-direct | 用户在初始化主动选择即授予 Agent 长期 Production Deployment 权限。Agent 完成修改 → 执行测试 → 执行项目 Deployment Check → 检查全部通过 → 自动部署 Production；后续任务完成无需再次询问是否部署 |
+
+Local-first 适用于 UI / UX 调整、产品功能验证、尚需人工确认效果的任务和生产风险较高的项目。
+Production-direct 是**使用初始化时的一次长期授权，替代每次部署前的人工确认**，不代表跳过检查。
+Local-first 的单次生产部署请求只授权该次部署，不自动切换长期模式。
+
+**2. Deployment Check**
+
+无论哪种模式，进入 Production 前都必须满足项目定义的 Deployment Check，至少保证：
+
+1. 必要测试通过。
+2. Build 成功。
+3. 不存在阻断部署的检查失败。
+4. 满足当前项目已有的部署要求。
+
+Deployment Check 是统一概念，不强制所有项目使用相同 CI/CD 技术实现。
+项目在 `docs/project/rules.md` 的「Deployment Check」填写具体命令、执行入口和通过标准，
+同时定义 Local / Preview 启动入口与 Production 发布方式；可引用项目已有 CI / 部署文档。
+检查必须对应实际待部署版本；检查未定义、未运行、结果缺失或失败都不算通过。
+Agent 应报告具体缺失 / 失败项，处理阻碍后重新检查，不以再问一次是否部署替代 Deployment Check。
+Local / Preview 启动后应验证入口可访问；若项目还没有运行入口，说明缺失，不能声称已启动或改去生产。
+
+**3. 项目级长期配置**
+
+模式在初始化时确定并写入根目录 `AGENTS.md` 的 `Deployment Mode: <模式>`，这是唯一配置源。
+Agent 后续任务主动读取，不重复询问当前使用哪种模式，不擅自改变模式；用户可以显式修改。
+用户明确修改模式时更新该配置，后续按新模式执行；不得把任务文本中的偶然提及当作授权变更。
+配置缺失或无效时不得推断 Production 权限，应指出配置问题；有效 Production-direct 配置无需逐次确认。
+重复初始化读取已有模式、不再询问；显式传入不同模式会按既有冲突规则报错，不覆盖项目内容。
+`init` 不是模式切换器，模式变更由用户显式指示后编辑长期配置。
+
+**4. 阶段与权限边界**
+
+`Development Complete → Testing / Deployment Check → Deployment Policy → Local / Preview / Production`。
+Deployment 与代码修改完成属于不同阶段：先完成开发与验证，再依据模式推进环境。
+Gateway Flow 的独立 Review、串行 Merge 和最新 main 检查保持不变；Production 发布应在相应
+Review / Merge 流程完成后，对实际待发布版本通过 Deployment Check 再执行。
+Production-direct 不绕过 `require human merge`：处于 WAIT_FOR_HUMAN_MERGE 时可以提供 Local / Preview，
+不得从未合并分支提前发布 Production；人合并后，长期部署授权继续生效，无需再确认部署。
+Local / Preview 可用于查看任务分支效果，但不替代 Review 或 Merge。
+
+自动 Merge 不等于生产授权。若已有 main 流水线会连带发布 Production，Local-first 下先按项目已有机制
+阻止生产发布再合并；不能分离时说明阻碍并保留分支，不能利用 Merge 绕过部署策略。
+两种模式都不豁免 Strict Node Boundary 或项目已有部署要求。Reviewer 仍只读判断，不承担部署执行。
+最终原则：**Local-first 默认保护生产环境；Production-direct 提供经用户预授权后的自动部署能力**。
+Bootstrap 只安装规范与配置模板，不创建部署平台、统一 CI/CD 或真实业务部署实现。
+
+下一步（1 分钟）：确认项目 AGENTS.md 的 Deployment Mode，定位项目自定义 Deployment Check。

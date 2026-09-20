@@ -18,4 +18,10 @@
 冲突或集成失败交原 Coder 适配、测试、重新 Review、重新入队；后续分支等待前序处理结果。
 只有明确 `require human merge` 才进入 WAIT_FOR_HUMAN_MERGE；没有服务端保护时如实说明。
 
+Deployment Mode: Local-first
+
+本仓库部署规则见 `docs/interface-spec.md` 的《Deployment 规范》。开发验证后提供本地文档或地图入口，
+不自行发布 Production。本仓库只交付工具与规范，尚无生产部署目标；明确要求生产发布时，
+须先定义必要测试、Build、阻断检查和现有部署要求，不把“测试通过”当作已完成生产部署。
+
 下一步（1 分钟）：打开 `docs/interface-spec.md` 确认修改对应的语义范围。
