@@ -32,6 +32,7 @@ Git includeIf 根据当前实际 Git directory 绑定自有 config/exclude 文�
 自有 exclude 复制有效 core.excludesFile 的规则（未配置时使用 Git 默认 XDG 路径），再添加 Bootstrap 范围；
 verify-install 重新读取继承规则并刷新，保留原全局配置、共享 info/exclude 和项目 .gitignore。
 排除刷新失败恢复刷新前内容。不能覆盖更高优先级的 Git 配置或项目否定 ignore 规则，发现可见性失败即报错。
+配置与薄入口先写同目录临时文件，再原子替换，部分写入不会截断原文件。
 安装失败删除本次文件和区块，恢复原入口；原未提交任务与索引不变。
 移动工作区会使绑定失效，verify-install 报错；移回原位置后卸载，再在新位置安装。
 Git directory 含 glob 或引号/换行等不能安全绑定的字符时拒绝；不通过模糊匹配扩大作用范围。

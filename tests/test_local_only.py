@@ -199,6 +199,52 @@ class LocalOnlyTests(unittest.TestCase):
             link.rmdir() if not link.is_symlink() else link.unlink()
             app.deinitialize(root, yes=True)
 
+    def test_partial_writes_never_truncate_original_rules_or_git_config(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "partial"
+            repository(root)
+            config = root / ".git/config"
+            entry = root / "AGENTS.override.md"
+            entry.write_bytes(b"original local preference")
+            (root / "task.txt").write_text("user edits")
+            original_config, original_entry = config.read_bytes(), entry.read_bytes()
+            original_status, original_diff = git(root, "status", "--porcelain"), git(root, "diff")
+            write_bytes = Path.write_bytes
+            for parent in (config.parent, entry.parent):
+                failed = []
+                def fail_partial(path, data):
+                    if path.name.startswith(".bootstrap-write-") and path.parent == parent and not failed:
+                        failed.append(True)
+                        write_bytes(path, data[:12])
+                        raise OSError("synthetic partial write")
+                    return write_bytes(path, data)
+                with self.subTest(parent=parent), patch.object(Path, "write_bytes", fail_partial):
+                    with self.assertRaisesRegex(OSError, "partial write"):
+                        app.initialize(root, "合成")
+                self.assertEqual(config.read_bytes(), original_config)
+                self.assertEqual(entry.read_bytes(), original_entry)
+                self.assertEqual(git(root, "status", "--porcelain"), original_status)
+                self.assertEqual(git(root, "diff"), original_diff)
+                self.assertFalse(bundle(root).exists())
+                self.assertFalse((root / "CLAUDE.local.md").exists())
+                self.assertFalse(list(root.rglob(".bootstrap-write-*")))
+
+    def test_orphan_end_marker_is_rejected_without_changes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "orphan"
+            repository(root)
+            entry = root / "CLAUDE.local.md"
+            entry.write_bytes(b"owner text\n<!-- END Project Bootstrap -->\n")
+            before = entry.read_bytes()
+            config = (root / ".git/config").read_bytes()
+            status = git(root, "status", "--porcelain")
+            with self.assertRaisesRegex(ValueError, "入口已有 Bootstrap 区块"):
+                app.initialize(root, "合成")
+            self.assertEqual(entry.read_bytes(), before)
+            self.assertEqual((root / ".git/config").read_bytes(), config)
+            self.assertEqual(git(root, "status", "--porcelain"), status)
+            self.assertFalse(bundle(root).exists())
+
     def test_verify_fails_for_changed_entries_and_deinit_can_remove_visible_install(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp) / "verify"

@@ -530,6 +530,20 @@ def local_config(root):
     return f'[core]\n\texcludesFile = {json.dumps(exclude, ensure_ascii=False)}\n'.encode("utf-8")
 
 
+def atomic_bytes(path, data):
+    """A partial write must never truncate existing project rules or Git config."""
+    descriptor, name = tempfile.mkstemp(prefix=".bootstrap-write-", dir=path.parent)
+    os.close(descriptor)
+    temporary = Path(name)
+    try:
+        temporary.write_bytes(data)
+        if path.exists():
+            shutil.copymode(path, temporary)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def initialize_local(root, name, explicit, deployment_mode):
     config, block = local_git(root)
     check_local_paths(root)
@@ -545,7 +559,8 @@ def initialize_local(root, name, explicit, deployment_mode):
     if mode not in DEPLOYMENT_MODES:
         raise ValueError("无效 Deployment Mode")
     entries = {name: (root / name).read_bytes() if (root / name).exists() else None for name in ENTRY_NAMES}
-    if any(value is not None and b"<!-- BEGIN Project Bootstrap -->" in value for value in entries.values()):
+    if any(value is not None and any(marker in value for marker in (
+            b"<!-- BEGIN Project Bootstrap -->", b"<!-- END Project Bootstrap -->")) for value in entries.values()):
         raise ValueError("入口已有 Bootstrap 区块但安装记录缺失；请先核实旧安装")
     before_config = config.read_bytes()
     if block in before_config:
@@ -572,7 +587,7 @@ def initialize_local(root, name, explicit, deployment_mode):
         (home / "git.exclude").write_bytes(files.pop("git.exclude"))
         if config.read_bytes() != before_config:
             raise ValueError("Git 配置在安装期间发生变化；请串行重试")
-        config.write_bytes(before_config + block)
+        atomic_bytes(config, before_config + block)
         for relative, data in files.items():
             path = home / relative
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -581,18 +596,18 @@ def initialize_local(root, name, explicit, deployment_mode):
             path = root / entry
             if (path.read_bytes() if path.exists() else None) != content:
                 raise ValueError(f"入口在安装期间被修改：{entry}")
-            path.write_bytes((content or b"") + ENTRY_BLOCKS[entry])
+            atomic_bytes(path, (content or b"") + ENTRY_BLOCKS[entry])
             changed_entries.append(entry)
         verify_install(root)
     except Exception:
         for entry in changed_entries:
             content = (root / entry).read_bytes().replace(ENTRY_BLOCKS[entry], b"", 1)
             if content or entries[entry] is not None:
-                (root / entry).write_bytes(content)
+                atomic_bytes(root / entry, content)
             else:
                 (root / entry).unlink()
         if block in config.read_bytes():
-            config.write_bytes(config.read_bytes().replace(block, b"", 1))
+            atomic_bytes(config, config.read_bytes().replace(block, b"", 1))
         if home_created:
             shutil.rmtree(home)
         raise
@@ -624,10 +639,10 @@ def deinitialize_local(target, yes=False):
         return 0
     for entry, data in restored.items():
         if data or entries[entry]:
-            (root / entry).write_bytes(data)
+            atomic_bytes(root / entry, data)
         else:
             (root / entry).unlink()
-    config.write_bytes(config.read_bytes().replace(block, b"", 1))
+    atomic_bytes(config, config.read_bytes().replace(block, b"", 1))
     shutil.rmtree(home)
     print("本地 Bootstrap 已移除；原规则、其他 worktree 与任务改动保留")
     return 1

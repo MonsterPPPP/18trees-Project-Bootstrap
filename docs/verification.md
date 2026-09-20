@@ -118,7 +118,7 @@ exclude 原字节和已评审任务提交均保留，项目只剩 `.git` 与 `lo
 
 | 验收项 | 本轮证据 |
 |---|---|
-| 工具链 | 18 项 unittest 通过；覆盖原 AGENTS/CLAUDE、现有文档/manifest、未提交任务、薄入口原文及后来编辑保留；skill 格式校验通过 |
+| 工具链 | 20 项 unittest 通过；覆盖原 AGENTS/CLAUDE、现有文档/manifest、未提交任务、薄入口原文及后来编辑保留；skill 格式校验通过 |
 | 隔离与恢复 | 两个 worktree 分别安装、卸载，第三个 Standard 工作区的状态与暂存可见性保留；继承排除规则刷新；安装失败恢复文件与 Git 配置；拒绝跟踪文件/链接；旧版只显式卸载、不自动迁移 |
 | Codex 新会话 | 真实 codex exec 新会话读取原 AGENTS 标记 ORIGINAL_CODEX_CEDAR 和本地 BOOTSTRAP_LOCAL_MAPLE，正确报告 Local-only、Local-first 与 Source of Truth；只读执行，exit 0 |
 | Claude Code 新会话 | 未通过环境验收：首次等待 180 秒无结果，关闭非必要 hooks/MCP 后 120 秒仍超时，日志反复 Connection error；本机合成传输检查也在 60 秒内未完成。已停止第三次后的重试，不声称规则加载成功 |
@@ -131,6 +131,9 @@ exclude 原字节和已评审任务提交均保留，项目只剩 `.git` 与 `lo
 
 Claude Code 当前登录状态为已登录，但这不能证明模型连接或新会话可用。
 可疑假设是该环境的原生 CLI 能完成非交互启动；需先恢复客户端会话能力，再补规则加载验收。
+独立 Review 指出的部分写入截断风险已改为同目录临时文件写完后原子替换；
+新增模拟部分写入后 OSError 的测试，验证配置、原入口、任务 diff/status 和残留全部恢复。
+孤立 END 标记也在写入前拒绝，并验证无副作用。
 本轮没有修改客户端全局配置、凭据或系统执行策略，没有生产发布。
 CLI 与模板静态检查不能替代该项行为验收；此项通过前不宣称计划全部验收完成。
 
