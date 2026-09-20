@@ -49,6 +49,12 @@ python .bootstrap/bootstrap.py validate project.manifest.json --map docs/project
 算法优化与能力边界未变的实现替换不触发同步。具体判定见 [接口规范](docs/interface-spec.md)。
 人说「只修改 NODE:X」时，Agent 必须守住该节点边界；CLI 不声称能自动证明代码所有权。
 
+默认开发采用 **Gateway Flow**：Task Branch → 独立 Review → Merge Queue → main。
+分支使用 `feat/`、`fix/`、`refactor/`、`chore/`；实现与测试后 Agent 自动发起独立评审，
+PASS 后按 Ready 顺序串行验证最新 main 并自动合并。需要人最终合并时明确说 `require human merge`。
+完整 10 节规范、职责边界、冲突闭环与 Review 样例均在 [接口规范](docs/interface-spec.md)，
+随初始化进入 AGENTS.md 和双客户端项目 skill。初始化不会安装 CI、创建队列服务或配置远端保护。
+
 **验证工具链（约 10 秒）**
 
 ```powershell

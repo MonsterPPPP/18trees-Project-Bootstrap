@@ -76,4 +76,153 @@ Strict Node Boundary：人明确「只修改 NODE:X」时，X 是硬边界，**�
 仅路径移动也不触发地图同步：Agent 定位时核实旧线索，下次有语义同步时一并修正 metadata。
 发现陈旧线索可记录任务结论，不把 HTML 改成真相源。
 
-下一步（1 分钟）：用一句话描述你要修改的 Product、Feature 或 Capability。
+**Git Workflow（Gateway Flow）· 1. 基本原则**
+
+`main ← Merge Queue ← Review Gate ← Task Branch ← Coding Agent`。
+所有开发任务默认基于最新 `main` 创建独立、短生命周期的 Task Branch。
+禁止 Coding Agent 直接修改、提交或直接 push 到 `main`；通过 Review Gate 后由 Merge Queue 执行合并。
+
+**2. Task Branch**
+
+使用 `feat/<task>`、`fix/<task>`、`refactor/<task>`、`chore/<task>`。
+一个 Branch 对应一个明确任务，生命周期尽可能短，合并后删除。
+修改遵循 [ponytail](https://github.com/DietrichGebert/ponytail)，限制在最小语义范围。
+Strict Node Boundary 继续适用：只修改 NODE:X 不包含其子节点、依赖或共享实现的其他行为。
+
+**3. 自动 Code Review**
+
+`Human Task → Coding Agent → 实现 + 测试 → 自动启动 Review Subagent`。
+Review 是每个开发任务的默认组成部分，不需要人类额外触发，也不能用 Coder 自审替代。
+Review Subagent 使用独立、干净的上下文，不继承 Coding Agent 的聊天、推理或先前结论。
+仅交付以下评审包（格式见下文契约）：
+
+1. 原始任务与验收目标。
+2. Semantic Node 与修改边界，包括是否为 Strict Node Boundary。
+3. 当前代码 Diff，绑定 base / head；必要的原始上下文放在 Diff 中。
+4. 测试结果，包括命令、退出码、对应 head、必要风险与未验证项。
+5. ponytail 与 Project Bootstrap 规范；基础 skill 正文不复制进仓库。
+
+Reviewer 只读，不改代码、不解决冲突、不提交、不合并，只输出 `PASS` 或
+`REQUEST_CHANGES`，附原因与修改要求。证据不足时 REQUEST_CHANGES，不能猜测通过。
+`Review FAIL（REQUEST_CHANGES）→ Coding Agent 修改 → 重新测试 → 新上下文重新 Review`，
+直到通过或发现任务无法在当前约束下完成；遇到硬边界立即停止修改并说明需要人重新定义的边界。
+连续三次修复失败时按交互规范暂停修复、检查假设，不以循环为由绕过停止条件。
+
+**4. Review 核心检查**
+
+| 检查对象 | 必须判断 |
+|---|---|
+| 原始需求与范围 | 是否真正完成验收；是否越过 Semantic Node，尤其 Strict Node Boundary |
+| 最小实现 | 是否违反 ponytail；是否有不必要的重构、依赖或复杂度 |
+| 验证与回归 | 测试是否通过、覆盖必要风险；是否引入明显回归 |
+| 语义同步 | 发生 Semantic / Structural Change 时，manifest、地图与相关文档是否同步 |
+
+只读追踪边界外信息不授权修改；共享文件须按符号和行为判断，不能只看文件名。
+同步仍按本规范的任务结束规则执行；内部实现变化不能为了“过 Review”强制刷新地图。
+
+**5. 默认 Merge 规则**
+
+人类未明确要求人工 Merge 时：`Review PASS → 自动进入 Merge Queue → 最终检查通过 → 自动 Merge 到 main`。
+人类明确指定 `require human merge` 时：`Review PASS → WAIT_FOR_HUMAN_MERGE`，
+禁止自动合并，等待人执行最终 Merge；可在任务指令或项目长期规则中指定该开关。
+开关只改变最终合并责任，不免除独立评审、测试、最新 main 验证或串行合并要求。
+人类未指定该开关时，不把重复 Review / Merge 确认交还给人。
+
+**6. 并行 Agent 与 Merge Queue**
+
+多个 Agent 可以在不同 Task Branch 上并行开发；队列按「先 Ready 先入队」排序，
+Ready = 开发完成 + 本 Branch 测试通过 + Review PASS，不按 Branch 创建时间排序。
+记录当前 head 对应的 Ready 状态；实现变更后原 PASS 失效，重新测试与 Review 后重新排队。
+Merge Queue 每次只处理一个队首任务；没有托管队列时由一个协调 Agent 串行执行该职责，
+不能由多个 Coding Agent 同时以队列身份更新 main。
+
+**7. 增量 Merge**
+
+尤其是后进入队列的 Branch，必须基于最新 `main` 重新验证：
+`同步最新 main → 检查冲突 → 重新运行 Integration Checks → Merge`。
+最终检查针对待合并结果（当前任务变更与最新 main 的组合），不是只重读旧测试报告。
+有远端时先获取最新 main；验证后若 main 再次前移，丢弃这次最终检查结果并重新同步验证。
+之前的 Review PASS 不是无条件 Merge 的依据。无冲突同步可沿用未改变任务实现的 Review；
+适配修改、冲突解决或新增实现必须重新测试与 Review。
+
+**8. 冲突处理**
+
+无冲突：`Sync latest main → Tests PASS → Merge`。
+出现代码冲突或集成测试失败：
+`Merge Queue FAIL → 移出 Queue → 返回原 Coding Agent → 基于最新 main 重新适配 → 测试 → 重新 Review → 重新进入 Merge Queue`。
+Review Agent 不得直接修改。重新入队按新的 Ready 顺序，不保留已失效的旧资格。
+前序任务仍在处理或其冲突适配尚未确定时，后续 Branch 保持等待，不提前强行解决尚未确定的冲突；
+待前序任务完成、明确退出或受阻状态得到明确处置后，再推进后续队首。
+适配也不能越过 Strict Node Boundary；必须涉及其他节点时停止，等待人重新定义边界。
+
+**9. Agent 职责边界**
+
+| 角色 | 负责 | 不负责 |
+|---|---|---|
+| Coding Agent | 实现、测试、修复、解决冲突 | 自己批准 Review、直接修改或 push main |
+| Review Agent | 独立审查，PASS / REQUEST_CHANGES | 修改代码、适配冲突、执行合并 |
+| Merge Queue | 串行化、同步最新 main、最终集成验证、合并与分支清理 | 替代 Coder 修改失败实现、绕过 Review |
+| Human | 下达任务、设定边界；明确要求时最终 Merge | 默认重复 Review 或 Merge 操作 |
+
+Coder 负责修改，Reviewer 负责判断，Merge Queue 负责串行化，人类默认不承担重复的 Review 与 Merge。
+
+**10. main 分支**
+
+main 是受保护分支；禁止 Coding Agent 直接 push，必须经过 Task Branch、Review Gate 与必要测试，
+默认通过 Merge Queue 合并，合并后删除 Task Branch（已发布的任务分支也需按仓库权限清理）。
+本 Bootstrap 交付行为规范，不自动配置托管平台分支保护、权限或 CI / 队列服务。
+接入远端时应把 main 保护设为禁止直接 push、要求 Review 与必要检查，并使用已有队列能力；
+未配置时必须如实说明，不宣称文档能提供服务端强制保护。
+缺少独立 Reviewer、队列执行能力或必要权限时保留任务分支并报告具体阻碍，不伪造 PASS 或绕过 gate。
+
+**Review Subagent 独立执行契约**
+
+以全新上下文启动 Reviewer。只传第 3 节的五类资料，可用如下任务包；
+未提供的验收证据不得视为通过。Reviewer 只审当前包，不读取 Coder 会话或自行扩充任务。
+
+```text
+原始任务与验收目标：<原文及成功标准>
+Semantic Node 与修改边界：<节点、普通/Strict、允许行为、共享影响>
+当前代码 Diff：<base SHA、head SHA、完整 diff；必要上下文使用扩展 diff>
+测试结果：<对应 head；命令、退出码、结果、必要风险与未验证项>
+规范：<ponytail skill 链接/可读取位置；Project Bootstrap 规范与项目生效规则>
+```
+
+若只凭 Diff 无法判断正确性，输出 REQUEST_CHANGES，要求 Coder 补足扩展 Diff 或测试证据。
+输出只能使用下面的判定格式；不额外输出实施计划、进度叙述或合并指令。
+本格式是机器间 Review 契约，不套用面向人的“结尾下一步行动”格式。
+
+```text
+PASS
+原因：<需求、边界、最小实现、测试/回归、同步判断的证据>
+修改要求：无
+```
+
+```text
+REQUEST_CHANGES
+原因：<具体不符合项及证据，不能只说“有风险”>
+修改要求：<可验证的修复或补充证据要求；不授权扩大边界>
+```
+
+**合成契约样例（非真实项目评审）**
+
+原始任务：只修改 `NODE:guide` 的使用说明，将重试上限从 2 次写为 3 次；
+验收是限制正确、其他节点未变。边界为 Strict，仅文档文字，不涉及语义/结构变化。
+合成 Diff A 仅把说明中的 `最多重试 2 次` 改为 `最多重试 3 次`，测试记录为对应 head 的
+文档断言通过（退出码 0），范围检查确认只修改该节点。预期输出：
+
+```text
+PASS
+原因：Diff A 完成指定说明修正，仅涉及 NODE:guide，无额外重构或依赖；文档断言通过，无行为回归；语义/结构未变，无需同步地图。
+修改要求：无
+```
+
+合成 Diff B 除上述文字外，还修改 `NODE:retry-engine` 的重试实现；测试记录仍通过（退出码 0）。预期输出：
+
+```text
+REQUEST_CHANGES
+原因：Diff B 修改 NODE:retry-engine 的实现，超出仅允许 NODE:guide 的 Strict Node Boundary；测试通过不能免除越界。
+修改要求：由 Coding Agent 移除本次越界改动并重新验证；若验收必须修改重试实现，停止修改，说明涉及 NODE:retry-engine 的原因，等待人重新定义边界后再测试和 Review。
+```
+
+下一步（1 分钟）：为当前任务确定一个语义范围和 Task Branch 名称。
