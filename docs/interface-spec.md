@@ -11,6 +11,49 @@
 
 只引用上游链接，不复制 skill 正文。Bootstrap 定义协作接口，不另造编码规范。
 
+```text
+Project Bootstrap
+├── Human–Agent Communication
+├── Semantic Project Map
+├── Semantic Modification Protocol
+├── Engineering Protocol
+│   ├── Ponytail
+│   └── Stop That Shit
+├── Git Workflow
+│   ├── Coding Agent
+│   └── Review Agent
+└── Deployment
+```
+
+**Engineering Protocol · Ponytail + Stop That Shit**
+
+[Ponytail](https://github.com/DietrichGebert/ponytail) 指导怎么实现得尽量小；
+[Stop That Shit（STS）](https://github.com/lennney/stop-that-shit) 指导何时停止继续加东西。
+STS 针对 Scope creep、无用 hardening、违反用户意图与重复折腾；两者互补，不是二选一。
+
+> 所有 Coding Agent 默认遵循 Ponytail + Stop That Shit：在完整满足当前需求的前提下，采用最小充分实现，禁止无需求的范围膨胀、未来假设、防御性复杂度和重复工作；Review Agent 使用相同原则检查是否存在越界，但不得自行修改代码。
+
+Coding Agent 同时应用 **Ponytail + Stop That Shit + Semantic Boundary**。
+最小充分修改 ≠ 最少代码：必要调用方、数据迁移、测试和文档必须一起完成，即使 diff 更大。
+必要后果也不能突破 Strict Node Boundary，触及边界先说明并等待人重定义。
+真实失败路径需要的保护应保留；不能凭名称删除现有 checksum、校验或恢复机制。
+
+例如「修改登录页错误提示」：完成文案及必要验证，不顺手重构 Auth Service，
+不加未来 abstraction、不加无人使用的 checksum / validation、不再叫 Subagent 重复确认，
+修完并充分验证后不继续“顺便优化”。Gateway Flow 要求的首次独立 Review 仍执行；
+仅在改动、失败或新验收问题使旧证据不再充分时重测或重新 Review。
+
+Reviewer 用 STS 判断问题，不按 STS 优化或修代码；以下五项并入既有 Review 核心检查，不另造流程：
+
+1. 有没有 Scope Creep？
+2. 有没有无需求复杂度？
+3. 有没有违反用户明确边界？
+4. 有没有重复验证 / 重复 Agent 调用？
+5. 有没有为了未来假设而增加机制？
+
+Review Agent = PASS / REQUEST_CHANGES ≠ 修改代码。「让它 Review，却自行修复」是违反意图的反例。
+STS 仅以链接接入，Bootstrap 不安装其 Guard hooks、不复制正文，也不宣称机器强制拦截。
+
 **交互与长期规则**
 
 1. 答案或下一步行动置顶，命令与可操作入口优先；多步工作编号，每步一个行动，每组最多 5 项。
@@ -114,6 +157,7 @@ Reviewer 只读，不改代码、不解决冲突、不提交、不合并，只�
 |---|---|
 | 原始需求与范围 | 是否真正完成验收；是否越过 Semantic Node，尤其 Strict Node Boundary |
 | 最小实现 | 是否违反 ponytail；是否有不必要的重构、依赖或复杂度 |
+| STS 行为守卫 | 按 Engineering Protocol 的五项检查审查范围、复杂度、明确边界、重复工作与未来假设；只判断，不修改 |
 | 验证与回归 | 测试是否通过、覆盖必要风险；是否引入明显回归 |
 | 语义同步 | 发生 Semantic / Structural Change 时，manifest、地图与相关文档是否同步 |
 
@@ -283,4 +327,54 @@ Local / Preview 可用于查看任务分支效果，但不替代 Review 或 Merg
 最终原则：**Local-first 默认保护生产环境；Production-direct 提供经用户预授权后的自动部署能力**。
 Bootstrap 只安装规范与配置模板，不创建部署平台、统一 CI/CD 或真实业务部署实现。
 
-下一步（1 分钟）：确认项目 AGENTS.md 的 Deployment Mode，定位项目自定义 Deployment Check。
+**初始化落地模式 · Standard / Local-only**
+
+初始化选择 `--bootstrap-mode Standard|Local-only`。Standard 默认，产物正常属于项目，按 Gateway Flow 提交。
+Local-only 用于合作项目 / 他人的项目：所有 Bootstrap 产物留在本地，对 Agent 可见、可读取，
+不进入 Git 暂存、提交、分支或 PR，不出现在普通 `git status` 与 `git diff` 中。
+Bootstrap Mode 写入 AGENTS.md；Local-only 另有 `.bootstrap/install-state.json` 记录卸载所需的原目录状态。
+Agent 开始任务主动读取，不重复询问；不以切换分支改变该模式。
+
+使用 Git 本地 `info/exclude` 标记区块（通过 Git 查询实际位置，支持 `.git` 文件形式工作区），
+不新增项目 `.gitignore` 条目，不改 Git 索引或已有跟踪状态，不使用 assume-unchanged / skip-worktree。
+Git exclude 不会隐藏已跟踪文件，因此安装前拒绝占用的目标路径，尤其已有 AGENTS.md、CLAUDE.md、
+manifest 或 docs/project。不能强制接管、取消跟踪或覆盖合作项目规则；请选择未冲突工作区或另行处理边界。
+同一个共享 Git 目录只允许一个 Local-only 安装，避免多个 worktree 重复接管同一 exclude 区块。
+
+Local-only 的专用范围如下，含后续生成内容与模式配置；原项目在这些位置已有内容时安装报错：
+
+| 专用范围 | 内容 |
+|---|---|
+| `AGENTS.md`、`CLAUDE.md`、`project.manifest.json` | Agent 入口、模式配置与语义 manifest |
+| `.bootstrap/` | 工具、规范、schema、安装记录及运行缓存 |
+| `docs/project/` | 人类文档、长期规则、HTML 地图与后续截图等产物 |
+| `.agents/skills/project-interface/`、`.claude/skills/project-interface/` | 项目 skill 与配套资源 |
+
+Agent 不得 `git add -f` Bootstrap 产物；任务分支只包含真实任务内容。新 Bootstrap 文档、截图、
+报告都写进上述专用目录，不得散落到任务目录；不得把业务代码放进这些目录。
+生成地图使用默认文档位置 `docs/project/map.html`，不另行输出到 Git 可见路径。
+Git 仍可通过显式 `--ignored` 查看本地忽略项，这是正常的诊断能力，不表示产物进入分支。
+普通 Git 操作遵守排除；本规范不声称能阻止人为强制添加。
+
+初次 Local-only 需目标已是 Git 工作区根目录；先 `git init` 或使用现有 clone。
+交互初始化先选 Bootstrap Mode，再选 Deployment Mode，回车分别默认 Standard 与 Local-first；
+非交互不指定时使用各自默认值。重复 Local-only 初始化保留已有本地编辑与地图，不重复询问、
+不追加第二个 exclude 区块；不是升级或修复器，模式切换仍不覆盖原文件。
+
+**Local-only 退场**
+
+1. 运行 `python .bootstrap/bootstrap.py deinit .` 预览固定清理范围。
+2. 将需要保留的本地规则备份到项目外。
+3. 确认后运行 `python .bootstrap/bootstrap.py deinit . --yes`。
+4. 运行 `git status --short` 确认仅保留真实任务状态。
+
+deinit 删除专用范围内全部 Bootstrap 文件（包含后续编辑 / 生成物），移除本次 exclude 区块，
+删除本次新建的空父目录，保留初始化前已有的空目录、其他 exclude 内容与任务改动。
+检测到已被强制跟踪的产物或链接目录时先停止，不自行改索引或删除外部文件。
+Standard 不适用 deinit；没有安装记录也不猜测删除。真实项目清理属于破坏操作，Agent 必须先获确认，
+`--yes` 是确认后的执行选项。已完成的真实任务提交不会随 Bootstrap 卸载回滚。
+
+Local-only 只管 Bootstrap 的 Git 可见性；Local-first 只管部署去向。二者独立，可组合。
+Local-only 下 Gateway Flow、Deployment、STS 与语义边界照常执行；长期本地规则不能因此进入 PR。
+
+下一步（1 分钟）：选择落地方式与部署模式，再开始当前任务。
