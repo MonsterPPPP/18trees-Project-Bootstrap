@@ -81,4 +81,25 @@ Reviewer 未收到预期判定或 Coder 结论，仅只读规范并给出决定�
 均为合成验证项目，不含真实生产目标或部署凭据。仅验证配置安装与规范，不宣称执行了真实部署。
 已有地图渲染代码与页面模板未修改，未重复浏览器视觉验收。
 
-下一步（1 分钟）：打开 `artifacts/deployment-local/AGENTS.md`，定位 Deployment Mode 与 Deployment Check。
+**STS + Local-only + 使用手册追加验收**
+
+2026-09-20：三个需求一起验证。`python -m unittest discover -s tests -v` 为 15/15 通过，
+项目 skill 格式检查通过。新增测试仅覆盖 Git 可见性、卸载数据安全与已支持工作区类型。
+
+| 验收项 | 证据 |
+|---|---|
+| STS 规范 | 已读取上游 README / SKILL，仅链接接入；规范与 AGENTS.md 模板的指定引文逐字相等，结构包含 Engineering Protocol 下的 Ponytail / STS，登录提示例与五项 Reviewer 检查齐全 |
+| 初始化 | Standard 13 文件；Local-only 14 文件（含本地安装记录）；本地模式在普通仓库和 `.git` 文件形式 worktree 上通过，Git status / diff 干净，无 `.gitignore` 修改 |
+| 任务边界 | 新建合成仓库，Standard 安装于其独立 worktree，Local-only 安装于主工作区；登录提示任务的 `git add .`、提交和 main 差异均只含 `login-message.txt` |
+| 手册全链路 | 按实际 CLI 初始化 → 以 NODE:login-message 下达严格边界任务 → 测试 → 干净上下文 Review PASS → 最新 main 集成检查 → Merge → 删除任务分支 → 预览 deinit → `--yes` 清理完成 |
+| 退场与失败 | 清理后仅剩 `.git` 与真实任务文本，exclude 恢复原字节；单测另验证后追加 exclude/原有空目录保留、重复初始化保留本地编辑、已跟踪冲突/链接拒绝、项目否定 ignore 规则导致初始化回滚 |
+
+合成手册任务只修改文本，不实现登录业务。其独立 Review 只接收原始任务、边界、Diff、测试结果与规范，
+结论为 PASS，修改要求为无。原始 head 为 `20d7938652636d8f61eb2abe96583402eb632498`，
+合成仓库保留在 `artifacts/manual-walkthrough`；已卸载 Bootstrap，真实合成任务提交仍保留。
+Standard 示例保留在同一仓库的 `artifacts/manual-standard` worktree，符合正常可提交模式。
+
+本次只新增初始化/清理能力，不改变 Gateway Flow 或 Deployment 的授权语义；
+已有地图渲染器与页面未变，不重复视觉测试；无生产部署。Git exclude 是本地可见性机制，不是强制提交拦截器。
+
+下一步（1 分钟）：打开 [中文使用手册](../MANUAL.md)，选择适合当前项目的初始化命令。
