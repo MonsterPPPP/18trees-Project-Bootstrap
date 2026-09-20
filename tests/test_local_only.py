@@ -1,5 +1,6 @@
-"""Synthetic Git lifecycle and removal safety; no business implementation."""
+"""Synthetic Git lifecycle: preserve original rules, tasks and worktree isolation."""
 from pathlib import Path
+import os
 import subprocess
 import sys
 import tempfile
@@ -18,96 +19,168 @@ def repository(root):
     git(root, "init", "-b", "main")
     git(root, "config", "user.name", "Synthetic Test")
     git(root, "config", "user.email", "synthetic@example.invalid")
-    (root / "task.txt").write_text("before\n", encoding="utf-8")
-    git(root, "add", "task.txt")
+    for name, text in {"task.txt": "before\n", "AGENTS.md": "Keep original project rules.\n",
+                       "CLAUDE.md": "Keep original Claude rules.\n"}.items():
+        (root / name).write_text(text, encoding="utf-8")
+    git(root, "add", ".")
     git(root, "commit", "-m", "test: synthetic baseline")
 
 
+def bundle(root):
+    return root / app.LOCAL_HOME
+
+
+def cli(root, *args):
+    return subprocess.run([sys.executable, "-X", "utf8", str(bundle(root) / "bootstrap.py"), *args], capture_output=True)
+
+
 class LocalOnlyTests(unittest.TestCase):
-    def test_local_lifecycle_and_task_commit_leave_no_bootstrap(self):
+    def test_default_lifecycle_preserves_rules_tasks_and_entry_edits(self):
         with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp) / "cooperation"
+            root = Path(temp) / "cooperation with spaces"
             repository(root)
-            (root / "docs/project").mkdir(parents=True)  # Pre-existing empty dirs survive.
-            exclude = root / ".git/info/exclude"
-            initial = exclude.read_bytes() + b"\n# owner rule\n*.owner\n"
-            exclude.write_bytes(initial)
-            before_dirs = {p.relative_to(root) for p in root.rglob("*") if p.is_dir() and ".git" not in p.parts}
-            with patch("builtins.input", side_effect=["2", "1"]), patch("builtins.print"):
-                self.assertEqual(app.initialize(root, "合成", interactive=True), 14)
-            self.assertEqual(git(root, "status", "--porcelain"), b"")
-            self.assertEqual(git(root, "diff"), b"")
-            (root / "docs/project/report.txt").write_text("generated\n")
-            (root / ".bootstrap/cache").mkdir()
-            (root / ".bootstrap/cache/sample.txt").write_text("cache")
-            (root / "docs/project/rules.md").write_text("local customization")
-            with patch("builtins.input", side_effect=AssertionError("do not ask")):
-                self.assertEqual(app.initialize(root, "合成", interactive=True), 0)
-            self.assertEqual(exclude.read_bytes().count(app.EXCLUDE_BLOCK), 1)
+            config = root / ".git/config"
+            config_before = config.read_bytes()
+            original = {p: (root / p).read_bytes() for p in ("AGENTS.md", "CLAUDE.md")}
+            for name in app.ENTRY_NAMES:
+                (root / name).write_bytes(b"original local preference without newline")
+            (root / "task.txt").write_text("user work in progress\n")
+            before_diff = git(root, "diff")
+            with patch("builtins.input", side_effect=AssertionError("no prompts")):
+                app.initialize(root, "合成", interactive=True)
+            self.assertEqual(git(root, "status", "--porcelain"), b" M task.txt\n")
+            self.assertEqual(git(root, "diff"), before_diff)
+            self.assertEqual(git(root, "diff", "--cached"), b"")
+            self.assertEqual(original, {p: (root / p).read_bytes() for p in original})
+            (bundle(root) / "docs/rules.md").write_text("local customization")
+            self.assertEqual(app.initialize(root, "合成"), 0)
+            self.assertEqual((bundle(root) / "docs/rules.md").read_text(), "local customization")
+            self.assertEqual((bundle(root) / "docs/usage.md").read_bytes(), (app.BASE / "MANUAL.md").read_bytes())
+            self.assertEqual(cli(root, "verify-install", str(root)).returncode, 0)
             git(root, "switch", "-c", "fix/synthetic-message")
-            (root / "task.txt").write_text("after\n", encoding="utf-8")
             git(root, "add", ".")
             self.assertEqual(git(root, "diff", "--cached", "--name-only"), b"task.txt\n")
             git(root, "commit", "-m", "fix: synthetic message")
-            self.assertEqual(git(root, "show", "--pretty=", "--name-only", "HEAD"), b"task.txt\n")
             git(root, "switch", "main")
             git(root, "merge", "--ff-only", "fix/synthetic-message")
             git(root, "branch", "-d", "fix/synthetic-message")
-            # Later owner excludes must also survive deinit.
-            exclude.write_bytes(exclude.read_bytes() + b"*.later\n")
-            command = [sys.executable, str(root / ".bootstrap/bootstrap.py"), "deinit", str(root)]
-            result = subprocess.run(command, capture_output=True)
+            for name in app.ENTRY_NAMES:
+                path = root / name
+                path.write_bytes(path.read_bytes() + b"\nnew owner preference\n")
+            config.write_bytes(config.read_bytes() + b"\n# new owner config\n")
+            self.assertEqual(cli(root, "deinit", str(root)).returncode, 0)
+            self.assertTrue(bundle(root).exists())
+            result = cli(root, "deinit", str(root), "--yes")
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertTrue((root / "AGENTS.md").exists())
-            result = subprocess.run(command + ["--yes"], capture_output=True)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(exclude.read_bytes(), initial + b"*.later\n")
-            self.assertEqual([p.name for p in root.rglob("*") if p.is_file() and ".git" not in p.parts], ["task.txt"])
-            self.assertEqual(before_dirs, {p.relative_to(root) for p in root.rglob("*") if p.is_dir() and ".git" not in p.parts})
-            self.assertEqual(git(root, "status", "--porcelain"), b"")
-            self.assertEqual(git(root, "ls-files"), b"task.txt\n")
+            self.assertFalse(bundle(root).exists())
+            self.assertEqual(config.read_bytes(), config_before + b"\n# new owner config\n")
+            for name in app.ENTRY_NAMES:
+                self.assertEqual((root / name).read_bytes(), b"original local preference without newline\nnew owner preference\n")
+            self.assertEqual(git(root, "diff"), b"")
+            self.assertEqual(git(root, "show", "--pretty=", "--name-only", "HEAD"), b"task.txt\n")
 
-    def test_local_conflicts_and_failed_visibility_roll_back(self):
+    def test_worktrees_install_independently_and_keep_standard_visible(self):
+        with tempfile.TemporaryDirectory() as temp:
+            primary, linked, standard = (Path(temp) / name for name in ("primary", "linked", "standard"))
+            repository(primary)
+            git(primary, "worktree", "add", "-b", "chore/linked", str(linked))
+            git(primary, "worktree", "add", "-b", "chore/standard", str(standard))
+            # Standard installation in a synthetic empty branch shares the repository.
+            git(standard, "rm", "AGENTS.md", "CLAUDE.md")
+            git(standard, "commit", "-m", "test: prepare standard fixture")
+            app.initialize(standard, "合成", bootstrap_mode="Standard")
+            status = git(standard, "status", "--porcelain", "--untracked-files=all")
+            config = primary / ".git/config"
+            before = config.read_bytes()
+            app.initialize(primary, "合成")
+            app.initialize(linked, "合成")
+            self.assertEqual(git(primary, "status", "--porcelain"), b"")
+            self.assertEqual(git(linked, "status", "--porcelain"), b"")
+            self.assertEqual(git(standard, "status", "--porcelain", "--untracked-files=all"), status)
+            git(standard, "add", ".")
+            self.assertIn(b"AGENTS.md", git(standard, "diff", "--cached", "--name-only"))
+            app.deinitialize(primary, yes=True)
+            app.verify_install(linked)
+            self.assertEqual(git(linked, "status", "--porcelain"), b"")
+            app.deinitialize(linked, yes=True)
+            self.assertEqual(config.read_bytes(), before)
+            self.assertEqual(set(p.name for p in primary.iterdir()), {".git", "task.txt", "AGENTS.md", "CLAUDE.md"})
+
+    def test_original_ignore_rules_refresh_without_global_or_shared_edits(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "ignore"
+            repository(root)
+            rules = Path(temp) / "inherited.ignore"
+            rules.write_bytes(b"*.secret\n")
+            git(root, "config", "core.excludesFile", str(rules))
+            shared = root / ".git/info/exclude"
+            shared_before = shared.read_bytes()
+            config_before = (root / ".git/config").read_bytes()
+            (root / "a.secret").write_text("synthetic")
+            app.initialize(root, "合成")
+            self.assertEqual(git(root, "status", "--porcelain"), b"")
+            rules.write_bytes(b"*.secret\n*.later\n")
+            (root / "b.later").write_text("synthetic")
+            app.verify_install(root)
+            self.assertEqual(git(root, "status", "--porcelain"), b"")
+            self.assertEqual(shared.read_bytes(), shared_before)
+            app.deinitialize(root, yes=True)
+            self.assertEqual((root / ".git/config").read_bytes(), config_before)
+            self.assertEqual(git(root, "status", "--porcelain"), b"")
+
+    def test_preflight_and_failure_restore_original_files_and_git_config(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp) / "conflict"
             repository(root)
-            exclude = root / ".git/info/exclude"
-            initial = exclude.read_bytes()
-            (root / "AGENTS.md").write_text("existing rules")
-            with self.assertRaisesRegex(ValueError, "冲突"):
-                app.initialize(root, "合成", bootstrap_mode="Local-only")
-            git(root, "add", "AGENTS.md")
+            config = root / ".git/config"
+            before = config.read_bytes()
+            (root / "AGENTS.override.md").write_bytes(b"local original")
+            git(root, "add", "AGENTS.override.md")
             with self.assertRaisesRegex(ValueError, "跟踪或暂存"):
-                app.initialize(root, "合成", bootstrap_mode="Local-only")
-            self.assertEqual(exclude.read_bytes(), initial)
-            self.assertFalse((root / ".bootstrap").exists())
-            root = Path(temp) / "negated"
-            repository(root)
-            (root / ".gitignore").write_text("!AGENTS.md\n")
-            git(root, "add", ".gitignore")
-            git(root, "commit", "-m", "test: negated ignore")
-            exclude = root / ".git/info/exclude"
-            initial = exclude.read_bytes()
+                app.initialize(root, "合成")
+            self.assertFalse(bundle(root).exists())
+            git(root, "reset", "--", "AGENTS.override.md")
+            (root / ".gitignore").write_text("!AGENTS.override.md\n")
             with self.assertRaisesRegex(ValueError, "仍对 Git 可见"):
-                app.initialize(root, "合成", bootstrap_mode="Local-only")
-            self.assertEqual(exclude.read_bytes(), initial)
-            self.assertFalse((root / ".bootstrap").exists())
-            self.assertEqual(git(root, "status", "--porcelain"), b"")
+                app.initialize(root, "合成")
+            self.assertFalse(bundle(root).exists())
+            self.assertEqual((root / "AGENTS.override.md").read_bytes(), b"local original")
+            self.assertFalse((root / "CLAUDE.local.md").exists())
+            self.assertEqual(config.read_bytes(), before)
+            with patch.object(app, "render_diagrams", side_effect=ValueError("render failed")):
+                with self.assertRaisesRegex(ValueError, "render failed"):
+                    app.initialize(root, "合成")
+            self.assertFalse(bundle(root).exists())
+            self.assertEqual(config.read_bytes(), before)
 
-    def test_cleanup_refuses_tracked_files_and_escaping_links(self):
+            # A directory created by someone else during rendering is not ours to remove.
+            rendered = app.render_diagrams(app.starter("合成"))
+            def occupy_during_render(*args):
+                bundle(root).mkdir()
+                (bundle(root) / "owner.txt").write_text("keep")
+                return rendered
+            with patch.object(app, "render_diagrams", side_effect=occupy_during_render):
+                with self.assertRaises(FileExistsError):
+                    app.initialize(root, "合成")
+            self.assertEqual((bundle(root) / "owner.txt").read_text(), "keep")
+            self.assertEqual(config.read_bytes(), before)
+
+    def test_cleanup_and_map_reject_tracked_files_and_links(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp) / "safe"
             repository(root)
-            app.initialize(root, "合成", bootstrap_mode="Local-only")
-            git(root, "add", "-f", "AGENTS.md")
+            app.initialize(root, "合成")
+            result = cli(root, "map", str(bundle(root) / "project.manifest.json"), "--output", str(root / "visible.html"))
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse((root / "visible.html").exists())
+            git(root, "add", "-f", "AGENTS.override.md")
             with self.assertRaisesRegex(ValueError, "跟踪或暂存"):
                 app.deinitialize(root, yes=True)
-            self.assertTrue((root / "AGENTS.md").exists())
-            git(root, "reset", "--", "AGENTS.md")
+            git(root, "reset", "--", "AGENTS.override.md")
             outside = Path(temp) / "outside"
             outside.mkdir()
             (outside / "keep.txt").write_text("keep")
-            link = root / "docs/project/external"
+            link = bundle(root) / "docs/external"
             try:
                 link.symlink_to(outside, target_is_directory=True)
             except OSError:
@@ -115,50 +188,47 @@ class LocalOnlyTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "链接或 junction"):
                 app.deinitialize(root, yes=True)
             self.assertEqual((outside / "keep.txt").read_text(), "keep")
-            # Remove only the known junction itself; never traverse its target.
             link.rmdir() if not link.is_symlink() else link.unlink()
             app.deinitialize(root, yes=True)
 
-    def test_shared_worktree_refusal_preserves_standard_and_cleanup(self):
+    def test_verify_fails_for_changed_entries_and_deinit_can_remove_visible_install(self):
         with tempfile.TemporaryDirectory() as temp:
-            primary, worktree = Path(temp) / "primary", Path(temp) / "linked"
-            repository(primary)
-            git(primary, "worktree", "add", "-b", "chore/linked", str(worktree))
-            exclude = primary / ".git/info/exclude"
-            initial = exclude.read_bytes()
-            app.initialize(primary, "合成", bootstrap_mode="Standard")
-            standard_status = git(primary, "status", "--porcelain", "--untracked-files=all")
-            self.assertIn(b"?? AGENTS.md", standard_status)
-            with self.assertRaisesRegex(ValueError, "多个 worktree"):
-                app.initialize(worktree, "合成", bootstrap_mode="Local-only")
-            self.assertEqual(exclude.read_bytes(), initial)
-            self.assertEqual(git(primary, "status", "--porcelain", "--untracked-files=all"), standard_status)
-            git(primary, "add", ".")
-            expected = set(app.install_files()) | {"project.manifest.json", "docs/project/map.html"}
-            self.assertEqual(set(git(primary, "diff", "--cached", "--name-only").decode().splitlines()), expected)
-            self.assertEqual([p.name for p in worktree.iterdir() if p.name != ".git"], ["task.txt"])
-            git(primary, "worktree", "remove", str(worktree))
-
-            # A single worktree can use Local-only; deinit remains available if a
-            # linked worktree is added later, so the shared rules can be removed.
-            root = Path(temp) / "local"
+            root = Path(temp) / "verify"
             repository(root)
-            exclude = root / ".git/info/exclude"
-            initial = exclude.read_bytes()
-            app.initialize(root, "合成", bootstrap_mode="Local-only")
-            self.assertEqual(git(root, "status", "--porcelain"), b"")
-            self.assertIn(app.EXCLUDE_BLOCK, exclude.read_bytes())
-            command = [sys.executable, str(root / ".bootstrap/bootstrap.py"), "map", str(root / "project.manifest.json"),
-                       "--output", str(root / "visible.html")]
-            self.assertNotEqual(subprocess.run(command, capture_output=True).returncode, 0)
-            self.assertFalse((root / "visible.html").exists())
-            git(root, "worktree", "add", "-b", "chore/linked", str(worktree))
-            with self.assertRaisesRegex(ValueError, "多个 worktree"):
-                app.initialize(root, "合成", bootstrap_mode="Local-only")
+            app.initialize(root, "合成")
+            entry = root / "AGENTS.override.md"
+            original = entry.read_bytes()
+            entry.write_bytes(b"changed")
+            with self.assertRaisesRegex(ValueError, "入口区块"):
+                app.verify_install(root)
+            entry.write_bytes(original)
+            (root / ".gitignore").write_text("!AGENTS.override.md\n")
+            with self.assertRaisesRegex(ValueError, "仍对 Git 可见"):
+                app.verify_install(root)
             app.deinitialize(root, yes=True)
-            self.assertEqual(exclude.read_bytes(), initial)
-            self.assertEqual(git(root, "status", "--porcelain"), b"")
-            self.assertEqual(git(worktree, "status", "--porcelain"), b"")
+            self.assertFalse(entry.exists())
+            self.assertEqual((root / ".gitignore").read_text(), "!AGENTS.override.md\n")
+
+    def test_legacy_install_is_not_migrated_and_can_be_removed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "legacy"
+            repository(root)
+            # Synthetic v1 owned files, with no pre-existing project rules.
+            git(root, "rm", "AGENTS.md", "CLAUDE.md")
+            git(root, "commit", "-m", "test: legacy fixture")
+            home = root / ".bootstrap"
+            home.mkdir()
+            (home / "install-state.json").write_text(app.encode({"bootstrap_mode": "Local-only", "preexisting_dirs": [], "exclude_existed": True}))
+            (root / "AGENTS.md").write_text("Bootstrap Mode: Local-only\n")
+            exclude = root / ".git/info/exclude"
+            before = exclude.read_bytes()
+            exclude.write_bytes(before + app.EXCLUDE_BLOCK)
+            with self.assertRaisesRegex(ValueError, "旧版 Local-only"):
+                app.initialize(root, "合成")
+            self.assertTrue(home.exists())
+            app.deinitialize(root, yes=True)
+            self.assertFalse(home.exists())
+            self.assertEqual(exclude.read_bytes(), before)
 
 
 if __name__ == "__main__":

@@ -1,110 +1,29 @@
 # Project Bootstrap
 
-**[打开中文使用手册：初始化 → 日常协作 → Local-only 退场](MANUAL.md)**
+在目标项目的 Coding Agent 对话框发送：
 
-```powershell
-python bootstrap.py init ../my-project --name "我的产品" --bootstrap-mode Standard --deployment-mode Local-first --archify /path/to/archify
-```
+> 请根据这个仓库，在当前项目初始化 Project Bootstrap：〈本仓库 GitHub 链接〉。仅本地生效，不把 Bootstrap 文件带进 Git；保留项目已有规则，完成后告诉我怎么使用。
 
-用 Product、Feature、Capability 与 Agent 协作。初始化后打开目标项目的
-`docs/project/map.html`，首页是 **Product / Feature Workflow**，不是文件树。
-本仓库只提供规范与工具链；示例全部为合成规划，不包含业务实现。
+然后继续对 Agent 说：
 
-**首次使用（约 3 分钟，下载时间另计）**
+> 告诉我这个项目能做什么，并打开项目地图。
 
-1. 安装 Python 3.12+ 与 Node.js 22+。
-2. 在本仓库运行 `python -m pip install -r requirements.txt`。
-3. 将 [archify](https://github.com/tt-a1i/archify) 安装到仓库外，例如 `git clone https://github.com/tt-a1i/archify ../archify`。
-4. 执行 `python bootstrap.py init ../my-project --name "我的产品" --archify ../archify`。
-5. 打开 `../my-project/docs/project/map.html`。
+> 修改登录失败提示，让用户知道如何重试。
 
-已有本地 archify 时可直接复用。生成器也会查找 `ARCHIFY_HOME`、`CODEX_HOME/skills/archify`
-与当前目录 / 用户目录下的 `.agents/skills/archify`、`.claude/skills/archify`、`.codex/skills/archify`。
-`--archify` 优先；指定错误路径会报错，不偷偷切换到其他安装。
-已验证 archify 2.15.0；升级后应重跑测试。
+**[人类使用手册](MANUAL.md)** · **[Agent 安装说明](INSTALL.md)**
 
-**初始化完成后**
+人只描述目标；Agent 负责安装、理解项目、修改、测试、独立 Review 和按队列合并。
+默认 Local-only + Local-first：Bootstrap 留在本机，生产发布需要明确授权。
+地图从 Product / Feature Workflow 开始，技术路径留给 Agent 定位。
 
-| 入口 | 用途 |
-|---|---|
-| `AGENTS.md`、`CLAUDE.md` | Codex / Claude Code 协作规则与导入入口 |
-| `docs/project/overview.md`、`rules.md` | 给人的操作文档与长期规则 |
-| `project.manifest.json`、`docs/project/map.html` | 语义投影与离线可视化 |
-| `.agents/skills/project-interface/`、`.claude/skills/project-interface/` | 相同项目 skill，供两个 Agent 加载 |
-| `.bootstrap/` | 可独立运行的校验与地图生成器、schema、接口规范 |
+**给接到安装请求的 Agent**：先读 [INSTALL.md](INSTALL.md)，在用户指定的目标项目执行。
+本仓库是规范与工具链来源，不要把整个仓库克隆到目标项目内，不要修改其业务依赖或已有规则。
 
-新目录自动生成 `planned` 产品与待定义流程，不推测业务已实现。
-初始化相同内容可重复执行，第二次新增 0 个文件；已有不同内容时预检失败，保留原文件，
-不自动追加或合并 AGENTS.md。项目已修改后请在空目录初始化并人工合并需要的内容；`init` 不是升级器。
-上游 skill 只引用链接，不自动下载或复制其正文；目标项目安装的是本 Bootstrap 的接口 skill。
-在新会话中让 Codex 或 Claude Code 加载项目 skill；本项目验证了文件格式、位置与内容一致性，未自动启动两个客户端执行行为评测。
+工程使用 [Ponytail](https://github.com/DietrichGebert/ponytail) 与
+[Stop That Shit](https://github.com/lennney/stop-that-shit)，交互使用
+[i-have-adhd](https://github.com/ayghri/i-have-adhd)，地图使用
+[archify](https://github.com/tt-a1i/archify)。上游正文只链接引用。
 
-**初始化时选择 Deployment Mode（约 1 分钟）**
+工具维护说明见 [工具链契约](docs/toolchain.md)，验收证据见 [验证记录](docs/verification.md)。
 
-初始化先选落地方式：Standard 默认随项目提交；合作 / 他人项目使用 `--bootstrap-mode Local-only`，
-用 Git 本地 exclude 隐藏全部 Bootstrap 产物，不改项目 `.gitignore`。目标需为 Git 根目录且专用路径无占用。
-本地配置位于 AGENTS.md；Local-only 重复初始化保留本地编辑。清理用 `deinit <目标>` 预览，确认后加 `--yes`。
-Local-only 的 Git 可见性与 Local-first 的部署去向是两项独立选择，详见 [手册](MANUAL.md)。
-
-Deployment 选择中回车采用 Local-first；非交互调用默认 Local-first。也可通过参数明确选择：
-
-```powershell
-python bootstrap.py init ../local-project --deployment-mode Local-first
-python bootstrap.py init ../production-project --deployment-mode Production-direct
-```
-
-| 模式 | 后续任务完成后的行为 |
-|---|---|
-| Local-first（默认） | 测试后启动 Local / Preview，给出可查看入口后停止；用户明确要求才可进入生产 |
-| Production-direct（用户主动选择） | 一次长期授权替代每次部署确认；每次 Deployment Check 全通过后自动部署生产 |
-
-选择 Production-direct 命令即明确记录生产部署长期授权；Agent 不得代用户自行选择。
-模式写入项目 `AGENTS.md` 的 `Deployment Mode`，后续任务主动读取；重复初始化保留已有模式、不重复询问。
-两种模式进入生产都必须通过必要测试、Build、阻断检查与项目已有部署要求，
-具体命令在 `docs/project/rules.md` 的 Deployment Check 填写。未填写不能视为通过。
-用户可显式要求修改 AGENTS.md 中的模式；`init` 不覆盖已有模式，不用于模式切换。
-初始化只安装配置和规范，不执行生产部署，也不安装 CI/CD。
-
-**目标项目内维护地图（约 1 分钟）**
-
-```powershell
-python .bootstrap/bootstrap.py validate project.manifest.json
-python .bootstrap/bootstrap.py map project.manifest.json --output docs/project/map.html --archify /path/to/archify
-python .bootstrap/bootstrap.py validate project.manifest.json --map docs/project/map.html
-```
-
-只在有效任务结束且出现语义或结构变化后更新 manifest；样式、内部重构、Bug 修复、
-算法优化与能力边界未变的实现替换不触发同步。具体判定见 [接口规范](docs/interface-spec.md)。
-人说「只修改 NODE:X」时，Agent 必须守住该节点边界；CLI 不声称能自动证明代码所有权。
-
-默认开发采用 **Gateway Flow**：Task Branch → 独立 Review → Merge Queue → main。
-分支使用 `feat/`、`fix/`、`refactor/`、`chore/`；实现与测试后 Agent 自动发起独立评审，
-PASS 后按 Ready 顺序串行验证最新 main 并自动合并。需要人最终合并时明确说 `require human merge`。
-完整 10 节规范、职责边界、冲突闭环与 Review 样例均在 [接口规范](docs/interface-spec.md)，
-随初始化进入 AGENTS.md 和双客户端项目 skill。初始化不会安装 CI、创建队列服务或配置远端保护。
-Deployment 是独立阶段：先完成开发与验证，再依模式推进环境。Production-direct 不跳过 Gateway Flow
-或 `require human merge`；若合并会自动发布生产，Local-first 必须先阻止该发布，否则保留分支并报告阻碍。
-
-**验证工具链（约 10 秒）**
-
-```powershell
-python -m unittest discover -s tests -v
-python bootstrap.py map examples/synthetic.manifest.json --output artifacts/synthetic-map.html
-python bootstrap.py validate examples/synthetic.manifest.json --map artifacts/synthetic-map.html
-```
-
-若 archify 不在自动查找目录，先设置环境变量：PowerShell 使用 `$env:ARCHIFY_HOME='/path/to/archify'`，
-POSIX shell 使用 `export ARCHIFY_HOME=/path/to/archify`。测试会真实调用 archify；缺失依赖时失败而非跳过全链路。
-
-| 阅读入口 | 内容 |
-|---|---|
-| [接口规范](docs/interface-spec.md) | 交互、四层地图、真相链、修改与同步协议 |
-| [工具契约](docs/toolchain.md) | schema、冲突策略、离线封装与校验边界 |
-| [合成 manifest](examples/synthetic.manifest.json) | 四层、共享 Capability、依赖与数据流 |
-| [验收记录](docs/verification.md) | 可复现命令与验证范围 |
-
-交互基于 [i-have-adhd](https://github.com/ayghri/i-have-adhd)，Engineering Protocol 基于
-[ponytail](https://github.com/DietrichGebert/ponytail) + [Stop That Shit](https://github.com/lennney/stop-that-shit)，可视化基于
-[archify](https://github.com/tt-a1i/archify)。不新增竞争性的编码规范。
-
-下一步（1 分钟）：打开生成的地图，选一个 Feature，用一句话描述希望改变的用户结果。
+下一步（1 分钟）：把本仓库链接和上面的安装请求发给目标项目 Agent。

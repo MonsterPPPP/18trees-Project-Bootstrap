@@ -5,21 +5,24 @@ description: 在具有 project.manifest.json 的项目中按语义节点修改�
 
 先确定角色：被指派为 Review Subagent 时，跳过下方语义修改步骤，直接执行 Gateway Flow 的
 Reviewer 契约，仅使用五类评审包，不自行读取 manifest、代码库或 Coder 会话。
-其他角色先读取项目根目录的 `AGENTS.md` 与 `.bootstrap/interface-spec.md`，识别 Bootstrap Mode；
-本 skill 的路径均相对于项目根目录。若未初始化，停止地图操作并说明缺少的文件。
+其他角色识别当前安装：Local-only 读取 `.project-bootstrap/AGENTS.md` 与 `.project-bootstrap/interface-spec.md`；
+Standard 读取根 AGENTS.md 与 .bootstrap/interface-spec.md。原项目和嵌套规则继续适用，不静默覆盖。
+Local-only 的文档、manifest、工具位于 .project-bootstrap/；下文 Standard 路径按该配置入口定位。
+metadata 始终相对于目标项目根目录。人类只通过对话框操作，Agent 执行命令并返回可查看入口。
 
 工程组合为 Ponytail + [Stop That Shit](https://github.com/lennney/stop-that-shit) + Semantic Boundary。
 最小充分修改不等于最少代码；必要调用方、迁移与测试需完整完成，禁止无需求复杂度、范围膨胀、
 未来假设与重复验证 / Agent 调用。Reviewer 在既有 gate 中按 STS 五项（Scope Creep、无需求复杂度、
 违反明确边界、重复验证/Agent 调用、未来假设机制）判断，不优化或修改代码。完整定义见 Engineering Protocol。
 
-Local-only 下 Bootstrap 产物不得暂存、提交或进入 PR；只在 AGENTS.md 列出的专用范围内保存
-manifest、地图、规则、skills 与新生成报告。不得强制添加；每次提交核对 staged diff 只含真实任务。
-Local-only 与部署 Local-first 不同；Gateway Flow、Deployment 和语义边界仍生效，不重复问模式。
-初始化使用源仓库 `python bootstrap.py init <目标> --bootstrap-mode Local-only --deployment-mode Local-first`，
-目标须已是单工作区的 Git 根目录；不能接管已有占用路径。新增 linked worktree 前先 deinit，
-需要并存时用独立 clone。退场在目标运行 `python .bootstrap/bootstrap.py deinit .`
-先预览，获人确认后加 `--yes` 清理；不擅自删除人的长期规则或真实任务文件。
+Local-only 下产物不得暂存、提交或进入 PR，全部内容放入 .project-bootstrap/；两个根薄入口仅负责读取。
+每次任务先执行 `python .project-bootstrap/bootstrap.py verify-install .`，刷新继承排除规则并验证当前安装。
+新建 worktree 后由 Agent 按源仓库 INSTALL.md 接入，验证前不声称已继承；不要求人执行安装命令。
+初始化默认 Local-only + Local-first，显式要求提交规范才使用 Standard；安装源码与依赖环境放在项目外。
+原 AGENTS.md / CLAUDE.md 不覆盖，薄入口只追加自有区块；跟踪入口或规则冲突不能静默处理。
+退出请求先预览 deinit，备份必要内容，获确认后加 --yes；保留原规则和实际任务改动。
+旧版安装先备份和确认卸载，不静默迁移。Local-only 改变 Git 可见性，不改变 Gateway / Deployment 授权。
+
 
 1. 从 `project.manifest.json` 定位 Product、Feature / User Flow、Capability；追踪 contains、precedes、depends_on、data_flow 与 metadata，再读代码核实证据。HTML 只是 Codebase → Manifest → HTML 链的输出。
 2. 按 [ponytail](https://github.com/DietrichGebert/ponytail) 选择最少语义节点、最小影响的正确修改。明确「只修改 NODE:X」是硬边界，不自动包含子节点或依赖；边界外只读。若必须修改其他节点，停止并说明原因，等人重新定义边界，不通过修改 metadata 扩权。
@@ -47,7 +50,7 @@ Reviewer 输出使用规范中的机器间判定格式；其他角色继续使�
 
 **Deployment 阶段**
 
-1. 非 Reviewer 角色主动读取根 AGENTS.md 的 `Deployment Mode` 与 `docs/project/rules.md` 的 Deployment Check；不重复询问模式，不擅自修改。初始化默认 Local-first，只有用户主动选择才可传 `--deployment-mode Production-direct`，不得代用户推断生产长期授权。
+1. 非 Reviewer 角色主动读取当前协作配置入口的 `Deployment Mode` 与 `docs/project/rules.md` 的 Deployment Check；不重复询问模式，不擅自修改。初始化默认 Local-first，只有用户主动选择才可传 `--deployment-mode Production-direct`，不得代用户推断生产长期授权。
 2. 先完成开发与验证，再按 `Development Complete → Testing / Deployment Check → Deployment Policy → Local / Preview / Production` 推进。Gateway Flow 不变；Production 必须完成 Review / Merge，Production-direct 不能绕过 `require human merge` 或从未合并分支发布。
 3. Local-first：修改与测试完成后启动 Local / Preview，验证并提供可查看入口后停止；只有明确生产请求才继续 Production，且仍须通过 Deployment Check。单次生产请求不修改长期模式。
 4. Production-direct：初始化的一次长期授权替代每次部署前确认；后续任务对待部署版本执行必要测试、成功 Build、全部阻断检查与项目已有部署要求，全部通过即自动部署 Production，不再次询问是否部署。不强制统一 CI/CD，不把缺失、未执行或失败的检查当作通过。
@@ -55,4 +58,4 @@ Reviewer 输出使用规范中的机器间判定格式；其他角色继续使�
 
 Reviewer 仅从评审包检查上述规则与实际变更是否一致，不启动环境或部署。
 
-下一步（1 分钟）：定位 AGENTS.md 的部署模式与项目 Deployment Check。
+下一步（1 分钟）：请人描述当前目标，由 Agent 定位节点与验证入口。

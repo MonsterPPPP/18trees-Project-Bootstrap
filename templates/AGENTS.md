@@ -2,18 +2,22 @@
 
 Bootstrap Mode: @@BOOTSTRAP_MODE@@
 
-每次任务开始读取本文件的 Bootstrap Mode，不重复询问。Standard 产物正常随项目提交；
-Local-only 用于合作 / 他人项目，全部 Bootstrap 文件只在本地，对 Agent 可见、可读，
-不得加入暂存区、提交、分支或 PR，不得 `git add -f`，任务分支仅含真正任务内容。
-Local-only 通过 Git 本地 info/exclude 排除，不改 `.gitignore`。专用范围是 AGENTS.md、CLAUDE.md、
-project.manifest.json、.bootstrap/、docs/project/ 与 .agents/skills/project-interface/、.claude/skills/project-interface/。
-所有后续 Bootstrap 报告、地图、截图与配置必须放入上述专用范围，不得放入业务路径，
-也不得将业务文件放入专用目录。模式配置和安装记录同样不进入 Git。
-Local-only 管 Bootstrap 的 Git 可见性，Deployment 的 Local-first 管部署去向；两者不同。
-Local-only 下 Git Workflow、Deployment、STS 与语义修改协议完全照常生效。
-Local-only 仅支持单工作区仓库；新增 linked worktree 前先 deinit，需要并存时使用独立 clone。
-卸载先 `python .bootstrap/bootstrap.py deinit .` 预览，确认后用 `--yes`；删除全部本地 Bootstrap
-编辑与生成物，保留真实任务改动。不要直接清空目录或手动改 Git 跟踪状态。
+人类唯一操作入口是当前项目 Agent 对话框。安装和日常命令由 Agent 执行，不把工具操作交给人。
+每次任务开始读取本文件的 Bootstrap Mode 与 Deployment Mode，不重复询问。
+Local-only 的配置入口是 `.project-bootstrap/AGENTS.md`，Standard 使用根目录 `AGENTS.md`。
+先保留原项目 AGENTS.md、CLAUDE.md 和嵌套规则；有冲突须明确说明，不能默默覆盖原规则。
+
+Local-only 全部产物只在本地，不得暂存、提交、进入分支或 PR，不得 git add -f。
+内容存放在 `.project-bootstrap/`；根目录两个薄入口仅引用本规范，保留原有内容。
+每次任务先由 Agent 执行 `python .project-bootstrap/bootstrap.py verify-install .`，核对 Git 隔离。
+先从本地 rules.md 读取已记录的 Python / archify 执行路径，复用该环境；
+缺少依赖时按源仓库 INSTALL.md 在项目外准备并记录，不能修改项目依赖。
+创建或进入新 worktree 时由 Agent 按同一安装说明接入并验证；未安装不能声称已继承。
+Local-only 的配置、规则、地图、截图及报告全部留在专用目录；任务分支只包含真实任务内容。
+Local-only 管 Git 可见性，Local-first 管部署去向；Gateway Flow、Deployment、STS 与语义边界照常执行。
+人说“移除 Bootstrap”时，先由 Agent 预览清理范围并让人确认，再执行 deinit --yes；
+保留真实任务、原规则和入口中非 Bootstrap 的内容。旧版安装先备份，确认卸载后再迁移。
+向人解释操作时引用 `docs/project/usage.md`，不要求人运行 CLI。
 
 按 Product → Feature / User Flow → Capability → System / Technical Layer 理解项目。
 先读 `docs/project/overview.md` 和 `.bootstrap/interface-spec.md`，再读取
@@ -25,8 +29,9 @@ Local-only 仅支持单工作区仓库；新增 linked worktree 前先 deinit，
 4. 默认修改：定位节点 → 追踪链路 → 选择最小路径 → 实施并验证。明确「只修改 NODE:X」即 Strict Node Boundary：不得修改节点外实现，也不自动允许修改子节点或依赖；无法正确完成就停止，说明必要的其他节点，等待人重新定义边界。
 5. 有效任务结束才判断同步。新增功能、Capability、服务、数据流、功能链路变化、服务拆分合并、系统边界变化、新外部依赖进入核心流程才同步。样式、内部重构、Bug 修复、算法优化、边界未变的实现替换不触发同步；不按 commit 或文件实时更新。
 
-加载项目 skill：Codex 使用 `.agents/skills/project-interface/SKILL.md`，Claude Code 使用
-`.claude/skills/project-interface/SKILL.md`。两份由 Bootstrap 安装，需保持一致。
+加载同一份项目 skill：Local-only 读取 `.project-bootstrap/skills/project-interface/SKILL.md`；
+Standard 的两个自动发现位置分别为 `.agents/skills/project-interface/SKILL.md` 与
+`.claude/skills/project-interface/SKILL.md`。内容一致，不维护两套客户端工作流。
 上游 skill 仅链接引用；可从链接单独安装，缺失时按接口规范工作并如实说明，禁止声称已加载。
 
 **Engineering Protocol · Ponytail + Stop That Shit + Semantic Boundary**
@@ -156,4 +161,4 @@ Local / Preview 可以作为任务分支的查看入口，但不替代 Review / 
 若现有合并流水线会自动发布生产，Local-first 下须先按项目流程阻止该发布，不能借自动 Merge 绕过部署授权。
 无法分离时报告阻碍并保留分支，不能冒充已获得生产授权。
 
-下一步（1 分钟）：核对本文件的 Deployment Mode，并打开 `docs/project/rules.md` 填写部署检查入口。
+下一步（1 分钟）：请人描述想完成的任务，由 Agent 定位语义节点。

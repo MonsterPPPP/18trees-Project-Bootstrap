@@ -272,10 +272,10 @@ REQUEST_CHANGES
 **Deployment 规范 · 1. 初始化时选择部署模式**
 
 项目初始化时选择 Deployment Mode，默认 **Local-first**。
-交互终端未传选项时显示两种模式，回车选择 Local-first；脚本 / 非交互调用未传选项时使用 Local-first。
+人通过项目 Agent 对话框选择；未明确指定时使用 Local-first，不要求人操作 CLI 或选择默认参数。
 也可明确传 `--deployment-mode Local-first` 或 `--deployment-mode Production-direct`。
 Agent 代用户初始化时不得自行选择 Production-direct，必须有用户的主动选择；
-命令参数或交互选择是该长期授权的落盘方式，初始化本身不执行部署。
+Agent 使用命令参数将用户明确授权落盘，初始化本身不执行部署。
 
 | 模式 | 流程与授权 |
 |---|---|
@@ -304,7 +304,8 @@ Local / Preview 启动后应验证入口可访问；若项目还没有运行入�
 
 **3. 项目级长期配置**
 
-模式在初始化时确定并写入根目录 `AGENTS.md` 的 `Deployment Mode: <模式>`，这是唯一配置源。
+模式写入当前安装的协作入口的 `Deployment Mode: <模式>`：Standard 为根目录 AGENTS.md，
+Local-only 为 .project-bootstrap/AGENTS.md。这是 Bootstrap 的唯一配置源；原项目已有规则不能被静默放宽。
 Agent 后续任务主动读取，不重复询问当前使用哪种模式，不擅自改变模式；用户可以显式修改。
 用户明确修改模式时更新该配置，后续按新模式执行；不得把任务文本中的偶然提及当作授权变更。
 配置缺失或无效时不得推断 Production 权限，应指出配置问题；有效 Production-direct 配置无需逐次确认。
@@ -327,56 +328,72 @@ Local / Preview 可用于查看任务分支效果，但不替代 Review 或 Merg
 最终原则：**Local-first 默认保护生产环境；Production-direct 提供经用户预授权后的自动部署能力**。
 Bootstrap 只安装规范与配置模板，不创建部署平台、统一 CI/CD 或真实业务部署实现。
 
-**初始化落地模式 · Standard / Local-only**
+**Agent 对话框 · 唯一人类操作入口**
 
-初始化选择 `--bootstrap-mode Standard|Local-only`。Standard 默认，产物正常属于项目，按 Gateway Flow 提交。
-Local-only 用于合作项目 / 他人的项目：所有 Bootstrap 产物留在本地，对 Agent 可见、可读取，
-不进入 Git 暂存、提交、分支或 PR，不出现在普通 `git status` 与 `git diff` 中。
-Bootstrap Mode 写入 AGENTS.md；Local-only 另有 `.bootstrap/install-state.json` 记录卸载所需的原目录状态。
-Agent 开始任务主动读取，不重复询问；不以切换分支改变该模式。
+人将本仓库 GitHub 链接发给目标项目 Coding Agent，说明“初始化 Bootstrap，仅本地生效”，即可开始。
+README 引导 Agent 读取源仓库 INSTALL.md；依赖准备、CLI、排错、地图生成与卸载由 Agent 执行。
+人类手册只教人如何表达目标、边界、查看结果和退出，不把 shell 命令当成人的安装步骤。
+源码与依赖环境放在目标项目之外；不修改业务依赖清单、锁文件或已有未提交改动。
+安装后当前会话主动读取规则，新会话通过薄入口加载。客户端是否加载须以实际会话验证，不能只验文件。
 
-使用 Git 本地 `info/exclude` 标记区块（通过 Git 查询实际位置），
-不新增项目 `.gitignore` 条目，不改 Git 索引或已有跟踪状态，不使用 assume-unchanged / skip-worktree。
-Git exclude 不会隐藏已跟踪文件，因此安装前拒绝占用的目标路径，尤其已有 AGENTS.md、CLAUDE.md、
-manifest 或 docs/project。不能强制接管、取消跟踪或覆盖合作项目规则；请选择未冲突工作区或另行处理边界。
-`info/exclude` 在 linked worktree 间共享，因此 Local-only 仅支持一个工作区的仓库；
-存在多个 worktree 时在写入前拒绝，避免隐藏其他工作区尚未提交的 Standard 文件。需要隔离时使用独立 clone。
-安装期间不得新增 linked worktree；先 deinit 再添加。若已添加，deinit 仍可执行以移除共享排除规则。
+**初始化落地模式 · Local-only（默认） / Standard（显式）**
 
-Local-only 的专用范围如下，含后续生成内容与模式配置；原项目在这些位置已有内容时安装报错：
+初始化不交互询问参数，默认 Local-only + Local-first。Standard 仅在人明确要求规范随项目提交时使用。
+重复初始化保留已安装模式和本地编辑，不承担升级；模式变更须由人显式提出。
+Local-only 须位于已有 Git 工作区根目录，不擅自 git init。Standard 保留原来的无覆盖文件布局。
 
-| 专用范围 | 内容 |
-|---|---|
-| `AGENTS.md`、`CLAUDE.md`、`project.manifest.json` | Agent 入口、模式配置与语义 manifest |
-| `.bootstrap/` | 工具、规范、schema、安装记录及运行缓存 |
-| `docs/project/` | 人类文档、长期规则、HTML 地图与后续截图等产物 |
-| `.agents/skills/project-interface/`、`.claude/skills/project-interface/` | 项目 skill 与配套资源 |
+| 内容 | Local-only | Standard |
+|---|---|---|
+| 协作配置入口 | `.project-bootstrap/AGENTS.md` | `AGENTS.md` |
+| 规范与工具 | `.project-bootstrap/` | `.bootstrap/` |
+| manifest | `.project-bootstrap/project.manifest.json` | `project.manifest.json` |
+| 人类文档与地图 | `.project-bootstrap/docs/` | `docs/project/` |
+| 通用 skill | `.project-bootstrap/skills/project-interface/` | `.agents/skills/project-interface/` 与 `.claude/skills/project-interface/` |
 
-Agent 不得 `git add -f` Bootstrap 产物；任务分支只包含真实任务内容。新 Bootstrap 文档、截图、
-报告都写进上述专用目录，不得散落到任务目录；不得把业务代码放进这些目录。
-生成地图使用默认文档位置 `docs/project/map.html`，不另行输出到 Git 可见路径。
-Git 仍可通过显式 `--ignored` 查看本地忽略项，这是正常的诊断能力，不表示产物进入分支。
-普通 Git 操作遵守排除；本规范不声称能阻止人为强制添加。
+上文提到的 docs/project/rules.md 等 Standard 路径，在 Local-only 中按此表定位。
+metadata 始终相对于目标项目根目录，隐藏目录不是业务源根。读取代码后生成语义投影，空项目保持 planned。
+人类使用说明安装为 docs 下的 usage.md，与根 MANUAL.md 使用同一份内容；Agent 提供其绝对路径入口。
 
-初次 Local-only 需目标已是 Git 工作区根目录；先 `git init` 或使用现有 clone。
-交互初始化先选 Bootstrap Mode，再选 Deployment Mode，回车分别默认 Standard 与 Local-first；
-非交互不指定时使用各自默认值。重复 Local-only 初始化保留已有本地编辑与地图，不重复询问、
-不追加第二个 exclude 区块；不是升级或修复器，模式切换仍不覆盖原文件。
+**已有规则与本地薄入口**
 
-**Local-only 退场**
+根 AGENTS.md、CLAUDE.md、已有文档和嵌套规则不覆盖、不取消跟踪。
+AGENTS.override.md 引导读取原 AGENTS.md，然后读取统一配置和 skill；CLAUDE.local.md 引入同一份配置。
+两者仅是薄入口，不维护两套客户端安装流程。Codex 每目录只发现一个 AGENTS 文件，因此不能省略原规则读取。
+已有未跟踪薄入口只追加可识别区块，保留原内容；已跟踪/暂存、链接或不完整旧区块在写入前报错。
+冲突须说明并等待必要裁决，不因为 Bootstrap 的默认授权放宽原项目限制。其他客户端读取同一入口，未经验证不声明自动加载。
 
-1. 运行 `python .bootstrap/bootstrap.py deinit .` 预览固定清理范围。
-2. 将需要保留的本地规则备份到项目外。
-3. 确认后运行 `python .bootstrap/bootstrap.py deinit . --yes`。
-4. 运行 `git status --short` 确认仅保留真实任务状态。
+**Git 隔离与 worktree**
 
-deinit 删除专用范围内全部 Bootstrap 文件（包含后续编辑 / 生成物），移除本次 exclude 区块，
-删除本次新建的空父目录，保留初始化前已有的空目录、其他 exclude 内容与任务改动。
-检测到已被强制跟踪的产物或链接目录时先停止，不自行改索引或删除外部文件。
-Standard 不适用 deinit；没有安装记录也不猜测删除。真实项目清理属于破坏操作，Agent 必须先获确认，
-`--yes` 是确认后的执行选项。已完成的真实任务提交不会随 Bootstrap 卸载回滚。
+Local-only 不进入暂存、提交、分支或 PR，Bootstrap 产物不出现在普通 status / diff 中。
+仅修改仓库本机配置，增加绑定当前 Git directory 的 includeIf 条件区块，引用本地专属排除文件；
+不修改全局配置、项目 .gitignore、共享 info/exclude 或索引，不使用 assume-unchanged / skip-worktree。
+专属排除文件继承原 core.excludesFile 的规则；每次任务由 Agent 运行 verify-install 核对并刷新。
+共享 info/exclude 与项目 ignore 仍由 Git 自身处理，若否定规则导致 Bootstrap 可见，安装回滚并报告。
+未跟踪薄入口在安装期间整体隐藏，卸载移除本次区块后恢复原内容与可见性。
 
-Local-only 只管 Bootstrap 的 Git 可见性；Local-first 只管部署去向。二者独立，可组合。
-Local-only 下 Gateway Flow、Deployment、STS 与语义边界照常执行；长期本地规则不能因此进入 PR。
+多个 worktree 可分别安装、卸载，Standard 工作区不会被其他工作区的 Local-only 隐藏。
+同一仓库的安装/卸载串行执行，不提供多进程事务保证。工作区移动后必须核实条件配置，不能继续假定有效。
+Agent 新建 worktree 后在该工作区接入并验证，不能假定未跟踪本地文件自动复制；明确适用的长期授权无需重复确认。
 
-下一步（1 分钟）：选择落地方式与部署模式，再开始当前任务。
+本地全部新报告、地图、配置与截图写入 .project-bootstrap/，业务文件不得写入该目录。
+map 输出限制在该目录的 docs/ 下。Agent 禁止 git add -f Bootstrap；普通 Git 隔离不是强制提交拦截。
+verify-install 检查状态、薄入口、Git 可见性和地图一致性，不证明语义证据正确或客户端已加载。
+若已有未提交任务，比较安装前后的状态与 diff 保持原任务；不要求清空人的工作区。
+
+**Local-only 退场与旧版迁移**
+
+人说“移除 Bootstrap”，Agent 执行以下步骤：
+
+1. 用当前安装的 bootstrap.py deinit 预览范围。
+2. 备份人需要保留的本地规则和产物。
+3. 获得删除确认后使用 --yes 执行。
+4. 核对原规则、原 Git 排除配置和任务改动保留。
+
+deinit 删除 .project-bootstrap/，只移除薄入口中的本次区块和本 worktree 的条件配置。
+入口原本存在或后来追加的其他内容保留；跟踪路径、链接或被破坏的清理区块先报错，不猜测删除。
+Standard 不适用 deinit。旧 .bootstrap/install-state.json 安装不能自动迁移：先备份、确认卸载，再初始化并恢复编辑。
+源码保留旧版 deinit 支持；新版初始化不会接管旧状态。真实任务提交不随卸载回滚。
+
+Local-only 只管 Git 可见性；Local-first 只管部署去向。Gateway Flow、Deployment、STS 和语义边界全部继续生效。
+
+下一步（1 分钟）：把链接和安装请求发给目标项目 Agent。
