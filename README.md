@@ -37,6 +37,27 @@ python bootstrap.py init ../my-project --name "我的产品" --archify /path/to/
 上游三个 skill 只引用链接，不自动下载或复制其正文；目标项目安装的是本 Bootstrap 的接口 skill。
 在新会话中让 Codex 或 Claude Code 加载项目 skill；本项目验证了文件格式、位置与内容一致性，未自动启动两个客户端执行行为评测。
 
+**初始化时选择 Deployment Mode（约 1 分钟）**
+
+交互终端会提示选择，回车采用 Local-first；非交互调用默认 Local-first。也可通过参数明确选择：
+
+```powershell
+python bootstrap.py init ../local-project --deployment-mode Local-first
+python bootstrap.py init ../production-project --deployment-mode Production-direct
+```
+
+| 模式 | 后续任务完成后的行为 |
+|---|---|
+| Local-first（默认） | 测试后启动 Local / Preview，给出可查看入口后停止；用户明确要求才可进入生产 |
+| Production-direct（用户主动选择） | 一次长期授权替代每次部署确认；每次 Deployment Check 全通过后自动部署生产 |
+
+选择 Production-direct 命令即明确记录生产部署长期授权；Agent 不得代用户自行选择。
+模式写入项目 `AGENTS.md` 的 `Deployment Mode`，后续任务主动读取；重复初始化保留已有模式、不重复询问。
+两种模式进入生产都必须通过必要测试、Build、阻断检查与项目已有部署要求，
+具体命令在 `docs/project/rules.md` 的 Deployment Check 填写。未填写不能视为通过。
+用户可显式要求修改 AGENTS.md 中的模式；`init` 不覆盖已有模式，不用于模式切换。
+初始化只安装配置和规范，不执行生产部署，也不安装 CI/CD。
+
 **目标项目内维护地图（约 1 分钟）**
 
 ```powershell
@@ -54,6 +75,8 @@ python .bootstrap/bootstrap.py validate project.manifest.json --map docs/project
 PASS 后按 Ready 顺序串行验证最新 main 并自动合并。需要人最终合并时明确说 `require human merge`。
 完整 10 节规范、职责边界、冲突闭环与 Review 样例均在 [接口规范](docs/interface-spec.md)，
 随初始化进入 AGENTS.md 和双客户端项目 skill。初始化不会安装 CI、创建队列服务或配置远端保护。
+Deployment 是独立阶段：先完成开发与验证，再依模式推进环境。Production-direct 不跳过 Gateway Flow
+或 `require human merge`；若合并会自动发布生产，Local-first 必须先阻止该发布，否则保留分支并报告阻碍。
 
 **验证工具链（约 10 秒）**
 

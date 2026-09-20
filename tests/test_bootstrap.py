@@ -115,6 +115,57 @@ class BootstrapTests(unittest.TestCase):
                     app.write_map(self.example, target)
             self.assertEqual(target.read_bytes(), b"existing")
 
+    def test_deployment_modes_cli_persist_without_overwrite(self):
+        with tempfile.TemporaryDirectory(prefix="deployment-modes-") as temp:
+            for option, expected in (([], "Local-first"), (["--deployment-mode", "Local-first"], "Local-first"),
+                                     (["--deployment-mode", "Production-direct"], "Production-direct")):
+                with self.subTest(option=option):
+                    project = Path(temp) / str(len(list(Path(temp).iterdir())))
+                    command = [sys.executable, "-X", "utf8", str(app.BASE / "bootstrap.py"), "init", str(project)]
+                    result = subprocess.run(command + option, input="", capture_output=True, text=True, encoding="utf-8")
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    agents = (project / "AGENTS.md").read_text(encoding="utf-8")
+                    template = (app.BASE / "templates/AGENTS.md").read_text(encoding="utf-8")
+                    self.assertEqual(agents, template.replace("@@DEPLOYMENT_MODE@@", expected))
+                    self.assertIn(f"Deployment Mode: {expected}\n", agents)
+                    self.assertNotIn("@@DEPLOYMENT_MODE@@", agents)
+                    rules = (project / "docs/project/rules.md").read_text(encoding="utf-8")
+                    self.assertIn("Deployment Check", rules)
+                    self.assertIn("Build", rules)
+                    app.validate_map(app.read_json(project / "project.manifest.json"), project / "docs/project/map.html")
+                    before = {p.relative_to(project): (p.read_bytes(), p.stat().st_mtime_ns) for p in project.rglob("*") if p.is_file()}
+                    # Existing Production-direct must survive a later init without a mode flag.
+                    with patch("builtins.input", side_effect=AssertionError("不得重新询问已有模式")):
+                        self.assertEqual(app.initialize(project, "新项目", interactive=True), 0)
+                    other = "Local-first" if expected == "Production-direct" else "Production-direct"
+                    conflict = subprocess.run(command + ["--deployment-mode", other], input="", capture_output=True, text=True, encoding="utf-8")
+                    self.assertNotEqual(conflict.returncode, 0)
+                    self.assertIn("冲突", conflict.stderr)
+                    self.assertEqual(before, {p.relative_to(project): (p.read_bytes(), p.stat().st_mtime_ns) for p in project.rglob("*") if p.is_file()})
+            invalid = Path(temp) / "invalid"
+            result = subprocess.run([sys.executable, str(app.BASE / "bootstrap.py"), "init", str(invalid),
+                                     "--deployment-mode", "unknown"], capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse(invalid.exists())
+
+    def test_deployment_mode_interactive_cli(self):
+        with tempfile.TemporaryDirectory(prefix="deployment-choice-") as temp:
+            for index, (choice, expected) in enumerate((("", "Local-first"), ("1", "Local-first"), ("2", "Production-direct"))):
+                project = Path(temp) / str(index)
+                with self.subTest(choice=choice), patch.object(sys, "argv", ["bootstrap.py", "init", str(project)]), \
+                        patch.object(sys.stdin, "isatty", return_value=True), patch("builtins.input", return_value=choice) as prompt, \
+                        patch("builtins.print"):
+                    self.assertEqual(app.main(), 0)
+                    prompt.assert_called_once()
+                    self.assertIn(f"Deployment Mode: {expected}\n", (project / "AGENTS.md").read_text(encoding="utf-8"))
+            invalid = Path(temp) / "invalid"
+            with patch("builtins.input", return_value="typo"), patch("builtins.print"), self.assertRaisesRegex(ValueError, "无效 Deployment Mode"):
+                app.initialize(invalid, "test", interactive=True)
+            self.assertFalse(invalid.exists())
+            with patch("builtins.input", side_effect=EOFError), patch("builtins.print"), self.assertRaisesRegex(ValueError, "选择未完成"):
+                app.initialize(invalid, "test", interactive=True)
+            self.assertFalse(invalid.exists())
+
     def test_symlink_cannot_redirect_initialization(self):
         with tempfile.TemporaryDirectory() as temp:
             outside, project = Path(temp) / "outside", Path(temp) / "project"
