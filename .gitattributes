@@ -1,2 +1,20 @@
+# 统一用 LF。仓库里有 Markdown、Python 和 bash 脚本，
+# 如果按 Windows 的 autocrlf 转成 CRLF，脚本在 Linux/Mac 上会出问题（shebang 带 \r 直接报错）。
 * text=auto eol=lf
+
+*.sh text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.py text eol=lf
+*.html text eol=lf
+*.txt text eol=lf
+
 *.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.pdf binary
