@@ -285,7 +285,7 @@ def check_target(root, relative):
     return target
 
 
-def local_repository(root):
+def local_repository(root, installing=False):
     def git(*args):
         result = subprocess.run(["git", "-C", str(root), *args], capture_output=True, encoding="utf-8")
         if result.returncode:
@@ -293,6 +293,8 @@ def local_repository(root):
         return result.stdout.strip()
     if Path(git("rev-parse", "--show-toplevel")).resolve() != root.resolve():
         raise ValueError("Local-only 必须安装到 Git 工作区根目录，不能安装到子目录")
+    if installing and sum(record.startswith("worktree ") for record in git("worktree", "list", "--porcelain", "-z").split("\0")) != 1:
+        raise ValueError("Local-only 不支持多个 worktree：info/exclude 会影响其他工作区；请使用独立 clone，未修改项目")
     if git("ls-files", "--", *LOCAL_SCOPES):
         raise ValueError("Local-only 冲突：Bootstrap 路径已有被 Git 跟踪或暂存的文件，不能用 exclude 隐藏；未修改项目")
     exclude = Path(git("rev-parse", "--path-format=absolute", "--git-path", "info/exclude"))
@@ -385,7 +387,7 @@ def initialize(target, name, explicit=None, deployment_mode=None, interactive=Fa
         state = read_json(state_path)
         if state.get("bootstrap_mode") != "Local-only" or bootstrap_mode != "Local-only":
             raise ValueError("初始化冲突：已有 Local-only 安装，不能通过 init 切换模式")
-        exclude = local_repository(root)
+        exclude = local_repository(root, installing=True)
         if not exclude.is_file() or exclude.read_bytes().count(EXCLUDE_BLOCK) != 1:
             raise ValueError("Local-only exclude 区块缺失或重复；请恢复后重试")
         if deployment_mode and f"Deployment Mode: {deployment_mode}\n" not in saved_agents:
@@ -398,7 +400,7 @@ def initialize(target, name, explicit=None, deployment_mode=None, interactive=Fa
     exclude_before = b""
     prior_dirs = []
     if bootstrap_mode == "Local-only":
-        exclude = local_repository(root)
+        exclude = local_repository(root, installing=True)
         local_contents(root)
         for scope in LOCAL_SCOPES:
             path = root / scope

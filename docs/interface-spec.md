@@ -335,11 +335,13 @@ Local-only 用于合作项目 / 他人的项目：所有 Bootstrap 产物留在�
 Bootstrap Mode 写入 AGENTS.md；Local-only 另有 `.bootstrap/install-state.json` 记录卸载所需的原目录状态。
 Agent 开始任务主动读取，不重复询问；不以切换分支改变该模式。
 
-使用 Git 本地 `info/exclude` 标记区块（通过 Git 查询实际位置，支持 `.git` 文件形式工作区），
+使用 Git 本地 `info/exclude` 标记区块（通过 Git 查询实际位置），
 不新增项目 `.gitignore` 条目，不改 Git 索引或已有跟踪状态，不使用 assume-unchanged / skip-worktree。
 Git exclude 不会隐藏已跟踪文件，因此安装前拒绝占用的目标路径，尤其已有 AGENTS.md、CLAUDE.md、
 manifest 或 docs/project。不能强制接管、取消跟踪或覆盖合作项目规则；请选择未冲突工作区或另行处理边界。
-同一个共享 Git 目录只允许一个 Local-only 安装，避免多个 worktree 重复接管同一 exclude 区块。
+`info/exclude` 在 linked worktree 间共享，因此 Local-only 仅支持一个工作区的仓库；
+存在多个 worktree 时在写入前拒绝，避免隐藏其他工作区尚未提交的 Standard 文件。需要隔离时使用独立 clone。
+安装期间不得新增 linked worktree；先 deinit 再添加。若已添加，deinit 仍可执行以移除共享排除规则。
 
 Local-only 的专用范围如下，含后续生成内容与模式配置；原项目在这些位置已有内容时安装报错：
 

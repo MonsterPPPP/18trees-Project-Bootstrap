@@ -119,22 +119,45 @@ class LocalOnlyTests(unittest.TestCase):
             link.rmdir() if not link.is_symlink() else link.unlink()
             app.deinitialize(root, yes=True)
 
-    def test_worktree_exclude_and_map_output_boundary(self):
+    def test_shared_worktree_refusal_preserves_standard_and_cleanup(self):
         with tempfile.TemporaryDirectory() as temp:
             primary, worktree = Path(temp) / "primary", Path(temp) / "linked"
             repository(primary)
             git(primary, "worktree", "add", "-b", "chore/linked", str(worktree))
             exclude = primary / ".git/info/exclude"
             initial = exclude.read_bytes()
-            app.initialize(worktree, "合成", bootstrap_mode="Local-only")
-            self.assertEqual(git(worktree, "status", "--porcelain"), b"")
-            self.assertIn(app.EXCLUDE_BLOCK, exclude.read_bytes())
-            command = [sys.executable, str(worktree / ".bootstrap/bootstrap.py"), "map", str(worktree / "project.manifest.json"),
-                       "--output", str(worktree / "visible.html")]
-            self.assertNotEqual(subprocess.run(command, capture_output=True).returncode, 0)
-            self.assertFalse((worktree / "visible.html").exists())
-            app.deinitialize(worktree, yes=True)
+            app.initialize(primary, "合成", bootstrap_mode="Standard")
+            standard_status = git(primary, "status", "--porcelain", "--untracked-files=all")
+            self.assertIn(b"?? AGENTS.md", standard_status)
+            with self.assertRaisesRegex(ValueError, "多个 worktree"):
+                app.initialize(worktree, "合成", bootstrap_mode="Local-only")
             self.assertEqual(exclude.read_bytes(), initial)
+            self.assertEqual(git(primary, "status", "--porcelain", "--untracked-files=all"), standard_status)
+            git(primary, "add", ".")
+            expected = set(app.install_files()) | {"project.manifest.json", "docs/project/map.html"}
+            self.assertEqual(set(git(primary, "diff", "--cached", "--name-only").decode().splitlines()), expected)
+            self.assertEqual([p.name for p in worktree.iterdir() if p.name != ".git"], ["task.txt"])
+            git(primary, "worktree", "remove", str(worktree))
+
+            # A single worktree can use Local-only; deinit remains available if a
+            # linked worktree is added later, so the shared rules can be removed.
+            root = Path(temp) / "local"
+            repository(root)
+            exclude = root / ".git/info/exclude"
+            initial = exclude.read_bytes()
+            app.initialize(root, "合成", bootstrap_mode="Local-only")
+            self.assertEqual(git(root, "status", "--porcelain"), b"")
+            self.assertIn(app.EXCLUDE_BLOCK, exclude.read_bytes())
+            command = [sys.executable, str(root / ".bootstrap/bootstrap.py"), "map", str(root / "project.manifest.json"),
+                       "--output", str(root / "visible.html")]
+            self.assertNotEqual(subprocess.run(command, capture_output=True).returncode, 0)
+            self.assertFalse((root / "visible.html").exists())
+            git(root, "worktree", "add", "-b", "chore/linked", str(worktree))
+            with self.assertRaisesRegex(ValueError, "多个 worktree"):
+                app.initialize(root, "合成", bootstrap_mode="Local-only")
+            app.deinitialize(root, yes=True)
+            self.assertEqual(exclude.read_bytes(), initial)
+            self.assertEqual(git(root, "status", "--porcelain"), b"")
             self.assertEqual(git(worktree, "status", "--porcelain"), b"")
 
 

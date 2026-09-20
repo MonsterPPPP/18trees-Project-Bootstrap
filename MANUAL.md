@@ -25,7 +25,8 @@ Production-direct 是一次长期授权，不再每次询问部署，但仍必�
 
 目标已有 AGENTS.md、CLAUDE.md 或其他 Bootstrap 专用路径时会报冲突，不覆盖、不自动合并。
 Local-only 不能隐藏已跟踪文件，不能以 `git rm --cached` 处理冲突；先请项目负责人确定可用位置，
-或用独立、无占用的工作区。Standard 按任务分支 + Review + Merge 提交；Local-only 不提交 Bootstrap。
+或用独立、无占用的 clone。Standard 按任务分支 + Review + Merge 提交；Local-only 不提交 Bootstrap。
+Local-only 不支持多个 worktree（Git 排除规则会共享），安装前会拒绝；安装后要新增 worktree，先 deinit。
 Local-only 重复初始化会保留本地编辑，不重复询问、不升级文件。
 
 **日常协作（下达任务约 1 分钟）**

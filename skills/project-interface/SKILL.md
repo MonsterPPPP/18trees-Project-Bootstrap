@@ -17,7 +17,8 @@ Local-only 下 Bootstrap 产物不得暂存、提交或进入 PR；只在 AGENTS
 manifest、地图、规则、skills 与新生成报告。不得强制添加；每次提交核对 staged diff 只含真实任务。
 Local-only 与部署 Local-first 不同；Gateway Flow、Deployment 和语义边界仍生效，不重复问模式。
 初始化使用源仓库 `python bootstrap.py init <目标> --bootstrap-mode Local-only --deployment-mode Local-first`，
-目标须已是 Git 根目录；不能接管已有占用路径。退场在目标运行 `python .bootstrap/bootstrap.py deinit .`
+目标须已是单工作区的 Git 根目录；不能接管已有占用路径。新增 linked worktree 前先 deinit，
+需要并存时用独立 clone。退场在目标运行 `python .bootstrap/bootstrap.py deinit .`
 先预览，获人确认后加 `--yes` 清理；不擅自删除人的长期规则或真实任务文件。
 
 1. 从 `project.manifest.json` 定位 Product、Feature / User Flow、Capability；追踪 contains、precedes、depends_on、data_flow 与 metadata，再读代码核实证据。HTML 只是 Codebase → Manifest → HTML 链的输出。

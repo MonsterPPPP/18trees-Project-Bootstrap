@@ -11,6 +11,7 @@ project.manifest.json、.bootstrap/、docs/project/ 与 .agents/skills/project-i
 也不得将业务文件放入专用目录。模式配置和安装记录同样不进入 Git。
 Local-only 管 Bootstrap 的 Git 可见性，Deployment 的 Local-first 管部署去向；两者不同。
 Local-only 下 Git Workflow、Deployment、STS 与语义修改协议完全照常生效。
+Local-only 仅支持单工作区仓库；新增 linked worktree 前先 deinit，需要并存时使用独立 clone。
 卸载先 `python .bootstrap/bootstrap.py deinit .` 预览，确认后用 `--yes`；删除全部本地 Bootstrap
 编辑与生成物，保留真实任务改动。不要直接清空目录或手动改 Git 跟踪状态。
 

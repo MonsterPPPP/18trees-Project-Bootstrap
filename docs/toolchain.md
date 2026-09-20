@@ -23,6 +23,8 @@ Workflow 是有序且不重复节点的一次用户旅程；有重试循环时�
 `--bootstrap-mode Standard|Local-only` 选择 Git 可见性，默认 Standard；与部署模式独立。
 Local-only 需 Git 根目录且专用范围未被占用或跟踪。Git 查询实际 `info/exclude`，追加自身标记区块，
 不改 `.gitignore`；安装后验证全部产物均被排除，若被项目否定规则覆盖则回滚。
+排除文件在 worktree 间共享，Local-only 在安装前拒绝多个 worktree；需要并存时使用独立 clone。
+安装后先卸载再新增 worktree；误加 worktree 不阻止 deinit 清除共享规则。
 Local-only 为 14 个文件（含安装状态），Standard 仍为 13；不保存上游 skill 正文。
 重复 Local-only 安装仅核对模式、排除区块和安装文件，不覆盖后续编辑，不是升级器。
 所有新 Bootstrap 产物应写入专用范围；Local-only CLI 的 map 输出限制在 `docs/project/`。
