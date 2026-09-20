@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; frame-src about:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="manifest-sha256" content="@@HASH@@">
+<title>@@TITLE@@ · 项目地图</title>
+<style>
+:root{color-scheme:light dark;--bg:#f5f7fb;--panel:#fff;--text:#172238;--muted:#52617a;--line:#dce3ee;--accent:#2555b8}
+@media(prefers-color-scheme:dark){:root{--bg:#101827;--panel:#182438;--text:#e8eef9;--muted:#aebbd0;--line:#33445e;--accent:#99baff}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 system-ui,sans-serif}main{max-width:1280px;margin:auto;padding:28px}h1{font-size:clamp(24px,3vw,38px);line-height:1.2;margin:8px 0}h2{font-size:22px}h3{margin:8px 0}p{margin:10px 0}a{color:var(--accent)}small,.muted{color:var(--muted)}nav{display:flex;flex-wrap:wrap;gap:10px;margin:20px 0}nav a,select{background:var(--panel);border:1px solid var(--line);padding:8px 14px;border-radius:9px;color:var(--text)}select{max-width:100%;font:inherit}iframe{display:block;width:100%;height:680px;border:1px solid var(--line);border-radius:14px;background:var(--panel);margin-top:16px}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:16px}article{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;overflow-wrap:anywhere}article:target{outline:3px solid var(--accent)}section{scroll-margin-top:16px;margin:32px 0}details{border-top:1px solid var(--line);padding-top:12px;margin-top:16px}summary{cursor:pointer;color:var(--muted)}pre{white-space:pre-wrap;font-size:13px;overflow-wrap:anywhere}.relation{font-size:14px}footer{border-top:1px solid var(--line);padding:20px 0}:focus-visible{outline:3px solid var(--accent);outline-offset:3px}@media(max-width:600px){main{padding:16px}iframe{height:540px}}
+</style>
+</head>
+<body>
+<main>
+<header><small>从用户目标开始 · 语义项目地图</small><h1>Product / Feature Workflow</h1><p>@@TITLE@@</p><p>选择用户流程，再沿能力查看实现。与 Agent 沟通时使用产品、功能或能力名称。</p></header>
+<nav aria-label="语义层级"><a href="#workflow">Product / Feature Workflow</a><a href="#product">Product</a><a href="#feature">Feature / User Flow</a><a href="#capability">Capability</a><a href="#system">System / Technical Layer</a></nav>
+<section id="workflow" aria-label="产品与用户流程"><label for="flow">流程 / 分页</label><br><select id="flow">@@CONTROLS@@</select><p id="progress" aria-live="polite"></p><iframe id="diagram" title="archify 产品与用户流程图" sandbox="allow-scripts allow-downloads"></iframe><noscript>请启用 JavaScript 查看流程图；下方四层语义卡片仍可阅读。</noscript></section>
+@@SECTIONS@@
+<footer><p>Codebase → Semantic Project Manifest → HTML Project Map</p><p class="muted">地图是只读输出；以代码与项目决策核实语义。实现线索仅在 Agent metadata 中展开。图形由 archify 生成，可离线使用。</p><p>下一步（1 分钟）：选一个 Feature，向 Agent 描述你希望改变的用户结果。</p></footer>
+</main>
+<script id="project-data" type="application/json">@@PAYLOAD@@</script>
+<script>
+'use strict';
+const projectData=JSON.parse(document.getElementById('project-data').textContent);
+const flow=document.getElementById('flow');
+function showFlow(){const index=Number(flow.value);document.getElementById('diagram').srcdoc=projectData.diagrams[index].html;document.getElementById('progress').textContent=`流程图 ${index+1} / ${projectData.diagrams.length}；长流程相邻页共享端点，顺序不丢失。`;}
+flow.addEventListener('change',showFlow);showFlow();
+</script>
+</body>
+</html>

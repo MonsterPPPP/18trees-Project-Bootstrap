@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Semantic Project Manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "nodes", "relationships", "workflows"],
+  "properties": {
+    "$schema": {"type": "string"},
+    "schema_version": {"const": 1},
+    "nodes": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/node"}},
+    "relationships": {"type": "array", "items": {"$ref": "#/$defs/relationship"}},
+    "workflows": {"type": "array", "items": {"$ref": "#/$defs/workflow"}}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^NODE:[A-Za-z][A-Za-z0-9_-]*$"},
+    "text": {"type": "string", "minLength": 1, "pattern": "\\S"},
+    "reference": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "symbols", "evidence"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*[:\\\\]).+$"},
+        "symbols": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/text"}},
+        "evidence": {"$ref": "#/$defs/text"}
+      }
+    },
+    "node": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "layer", "name", "summary", "status", "metadata"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "layer": {"enum": ["product", "feature", "capability", "system"]},
+        "name": {"$ref": "#/$defs/text"},
+        "summary": {"$ref": "#/$defs/text"},
+        "status": {"enum": ["planned", "implemented"]},
+        "metadata": {
+          "type": "object", "additionalProperties": false,
+          "required": ["references"],
+          "properties": {"references": {"type": "array", "items": {"$ref": "#/$defs/reference"}}}
+        }
+      },
+      "allOf": [{
+        "if": {"properties": {"status": {"const": "implemented"}}},
+        "then": {"properties": {"metadata": {"properties": {"references": {"minItems": 1}}}}}
+      }]
+    },
+    "relationship": {
+      "type": "object", "additionalProperties": false,
+      "required": ["from", "to", "kind", "label"],
+      "properties": {
+        "from": {"$ref": "#/$defs/id"}, "to": {"$ref": "#/$defs/id"},
+        "kind": {"enum": ["contains", "precedes", "depends_on", "data_flow"]},
+        "label": {"$ref": "#/$defs/text"}
+      }
+    },
+    "workflow": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "name", "product", "steps"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^FLOW:[A-Za-z][A-Za-z0-9_-]*$"},
+        "name": {"$ref": "#/$defs/text"},
+        "product": {"$ref": "#/$defs/id"},
+        "steps": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}
+      }
+    }
+  }
+}
