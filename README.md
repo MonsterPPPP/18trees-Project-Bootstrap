@@ -8,6 +8,8 @@
 
 适用于支持 skills 的 Coding Agent（Codex / Claude Code）。人只描述目标，Agent 负责安装、理解、修改、测试、独立 Review 与按队列合并。
 
+它**不发明新规范**——交互规范、编码规范、工程规范分别来自四个已验证的上游 skill，本项目负责把它们集成为一次可用的初始化，并无侵入地装进你已有的项目。
+
 > A minimal-intrusion collaboration layer for AI coding agents working on **existing** codebases: a four-layer semantic map instead of a file tree, a complete Task Branch → Review Gate → Merge Queue → Deployment workflow, and **Local-only by default — nothing enters your Git history**.
 
 ---
@@ -69,32 +71,68 @@ Project Bootstrap 做三件事：
 
 ## 我们的贡献
 
-### 做了的
+**一句话**：本项目是一个**个人定制化的 Bootstrap**。它不发明新规范，而是把已有的优秀 skill 集成为一套开箱可用的项目初始化——并且用无侵入的方式装进你已有的项目。
 
-1. **Local-only 安装。** 安装前后 tracked / staged diff 不变，普通 `git status` 不增加 Bootstrap 条目。用 **Git 条件配置**把影响限制在安装所在的工作区——**不改共享 `info/exclude`、不改全局 Git 配置、不改 `.gitignore`**。想让规范随项目提交，显式选 Standard 模式。
-2. **四层语义地图。** Product / Feature Workflow / Capability / System，人类在前两层操作，不需要记文件路径或类名。用 [archify](https://github.com/tt-a1i/archify) 生成，可完全离线查看。
-3. **可逆。** `deinit` 干净移除：恢复 exclude 原字节、恢复薄入口原内容、保留你的任务改动。薄入口对已有文件只**追加自己的标记区块**，不改已跟踪的 `AGENTS.md` / `CLAUDE.md`。
-4. **完整工作流闭环，职责边界成文。** Task Branch → 不继承会话的独立 Review Subagent → 按 Ready 顺序的 Merge Queue（每次都基于最新 main 重新验证）→ 部署模式（Local-first / Production-direct）。含 `require human merge` 人工开关。
-5. **不新增竞争性编码规范。** 实现幅度用 [ponytail](https://github.com/DietrichGebert/ponytail)，停止条件用 [Stop That Shit](https://github.com/lennney/stop-that-shit)，交互用 [i-have-adhd](https://github.com/ayghri/i-have-adhd)，可视化用 archify。上游正文只链接引用、不入库。
-6. **验收记录如实标注边界。** 见 [docs/verification.md](docs/verification.md)——明确写清了哪些没验证、哪些是合成演练。
+### 1. 它是一个集成者（这是最主要的工作）
+
+本项目不自己造编码规范、交互规范、工程规范，而是选定四个已验证的上游，把它们编排成一套能协同工作的整体：
+
+| 层 | 上游 | 这一层管什么 |
+|---|---|---|
+| **交互规范** | [i-have-adhd](https://github.com/ayghri/i-have-adhd) | 每条回复怎么组织：行动置顶、编号步骤、每轮进度、具体时间、可见结果 |
+| **编码规范** | [ponytail](https://github.com/DietrichGebert/ponytail) | 怎么实现得尽量小：新代码、新抽象、新依赖与影响面 |
+| **工程规范** | [Stop That Shit](https://github.com/lennney/stop-that-shit) | 什么时候停止继续加东西：范围膨胀、无用防御、意图越界、任务打转 |
+| **可视化** | [archify](https://github.com/tt-a1i/archify) | 四层语义地图的渲染与校验 |
+
+**集成本身就是工作。** 这四个上游各自独立、接口不同、正文互不引用。让它们在一套流程里协同——各自的适用边界在哪、Reviewer 按哪套标准审查、上游缺失时怎么办、冲突时听谁的——并把结论固化成初始化模板，是本项目的主要产出。
+
+所以本项目**明确不新增竞争性的编码规范**：不定义代码风格、不定义测试规范、不定义目录约定。已有的好规范就用已有的，本项目负责让它们一起工作。
+
+### 2. 无侵入接入已有项目
+
+安装前后 tracked / staged diff 不变，普通 `git status` 不增加 Bootstrap 条目。用 **Git 条件配置**把影响限制在安装所在的工作区——**不改共享 `info/exclude`、不改全局 Git 配置、不改 `.gitignore`**。想让规范随项目提交，显式选 Standard 模式。
+
+并且**可逆**：`deinit` 恢复 exclude 原字节、恢复薄入口原内容、保留你的任务改动。薄入口对已有文件只**追加自己的标记区块**，不改已跟踪的 `AGENTS.md` / `CLAUDE.md`。
+
+### 3. 一次初始化，四类规范全部到位
+
+初始化的产出不是几个占位文件，而是一套能立刻开工的协作环境：
+
+| 类别 | 装了什么 |
+|---|---|
+| **编码规范** | ponytail 的最小实现原则、新依赖与新抽象的门槛、影响面判定 |
+| **交互规范** | i-have-adhd 的输出结构：行动置顶、编号步骤、每轮重述进度、具体时间、可见结果 |
+| **工程规范** | Stop That Shit 的 S/H/I/T 四类识别与判断顺序；Strict Node Boundary；Reviewer 的审查项 |
+| **配置约定** | Git 工作流（分支命名、Review Gate、Merge Queue、`require human merge`）、Deployment Mode、薄入口与加载方式 |
+
+这些结论全部写进目标项目的 `AGENTS.md` 与项目 skill，新会话直接加载，**不需要你重新解释一遍规则**。
+
+### 4. 四层语义地图
+
+Product / Feature Workflow / Capability / System。人类在前两层操作（"修改 Auth / Session Management"），技术路径留给 Agent 定位——不需要记文件路径或类名。用 archify 生成，可完全离线查看。
+
+### 5. 完整工作流闭环，职责边界成文
+
+Task Branch → 不继承会话的独立 Review Subagent → 按 Ready 顺序的 Merge Queue（每次都基于最新 main 重新验证）→ 部署模式（Local-first / Production-direct）。
+
+谁负责修改、谁负责判断、谁负责串行化、人在哪一步介入——都写死在规范里，不靠默契。
 
 ### 没做的（是设计选择）
 
 - **不生成代码。** 它建立协作环境，不替你写业务实现。
-- **不配置服务端。** 不装 CI、不配分支保护、不搭建 Merge Queue 服务。规范说明了这些 gate 应该怎么设，但初始化不会替你设置。
+- **不配置服务端。** 不装 CI、不配分支保护、不搭建 Merge Queue 服务。
 - **不做多智能体编排。** 那是 ruflo 的领域。
 - **不做规格生成器。** 那是 spec-kit / OpenSpec 的领域。
 
-### 诚实的短板
+### 短板（简述）
 
-- **Claude Code 客户端行为验收未完成。** 只有 Codex 的新会话加载被真实验证过（真实 `codex exec` 新会话正确读取规则并报告模式）。Claude Code 侧此前三次尝试因超时 / Connection error 未完成，用户明确决定绕过——**这不是"通过"，是"未测"**。
-- **服务端未经验证。** 本仓库没有远端配置，因此**分支保护与托管 Merge Queue 未经实测**。
-- **语义判断仍由 Agent 执行。** Strict Node Boundary、代码证据、地图同步——工具不自动证明这些语义事实，只提供规范与校验。
+- **Claude Code 客户端行为验收未完成**——只有 Codex 的新会话加载被真实验证过。这是「未测」，不是「通过」。
+- **服务端与语义层未验证**：无远端配置，分支保护与托管 Merge Queue 未经实测；Strict Node Boundary、地图同步等语义事实仍由 Agent 判断，工具不自动证明。
 - **只在 Windows 上做过完整验收**（Python 3.12.7 / Node.js 24.12.0 / archify 2.15.0）。
-- **Git exclude 是本地可见性机制，不是强制提交拦截器。** `git add -f` 能绕过；规范要求 Agent 检查自己的暂存内容，但工具无法从机制上阻止。
-- **安装期间，目标项目原有的未跟踪薄入口会被临时隐藏。** 安装前后普通 `git status` 不增加条目，但如果项目里原本就有一个未跟踪的 `AGENTS.override.md` / `CLAUDE.local.md`，它会在安装期内被本地排除、卸载后恢复可见。这是有意的，但属于"状态有变化"而非"完全无感"。
-- **依赖四个上游 skill。** 上游变更可能影响行为。
-- **0 star，新项目。** 实机使用案例还少。
+- **Git exclude 不是强制提交拦截器**，`git add -f` 能绕过；且依赖四个上游 skill。
+- **0 star，新项目**，实机使用案例还少。
+
+完整边界逐项记录在 [docs/verification.md](docs/verification.md)——那里明确标注了哪些没验证、哪些是合成演练。
 
 ---
 
