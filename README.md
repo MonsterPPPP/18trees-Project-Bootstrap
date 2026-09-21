@@ -111,11 +111,102 @@ Project Bootstrap 做三件事：
 
 Product / Feature Workflow / Capability / System。人类在前两层操作（"修改 Auth / Session Management"），技术路径留给 Agent 定位——不需要记文件路径或类名。用 archify 生成，可完全离线查看。
 
-### 5. 完整工作流闭环，职责边界成文
+### 5. 工作子 Agent 编排：每个任务一条分支 + 强制独立 Review
 
-Task Branch → 不继承会话的独立 Review Subagent → 按 Ready 顺序的 Merge Queue（每次都基于最新 main 重新验证）→ 部署模式（Local-first / Production-direct）。
+这是本项目在**工程流程**上的主要产出，也是它和"给 Agent 加个 AGENTS.md"最不一样的地方。
 
-谁负责修改、谁负责判断、谁负责串行化、人在哪一步介入——都写死在规范里，不靠默契。
+**一次任务的完整链路：**
+
+```text
+Human 下达任务
+      │
+      ▼
+Coding Agent ── 基于最新 main 建 Task Branch ── 实现 + 测试
+      │
+      ▼
+自动启动 Review Subagent（不需要人触发）
+      │
+      ├── PASS ──────────────► Merge Queue
+      │                              │
+      └── REQUEST_CHANGES            按 Ready 顺序串行
+              │                     同步最新 main → 集成检查 → Merge → 删分支
+              ▼
+   Coder 修改 → 重新测试 → 全新上下文重新 Review
+```
+
+**每次改动都单独开一条分支。** `feat/<task>`、`fix/<task>`、`refactor/<task>`、`chore/<task>`——一个分支一个明确任务，合并后删除。**Coding Agent 禁止直接修改、提交或 push `main`。**
+
+**Review 是默认动作，不是可选步骤。** 每个开发任务自动启动 Review Subagent，**不能用 Coder 自审替代**。
+
+**Reviewer 在独立干净的上下文里工作**，不继承 Coding Agent 的聊天、推理或先前结论。它只拿到五类资料：
+
+| 交付给 Reviewer | 内容 |
+| --- | --- |
+| 原始任务与验收目标 | 原文及成功标准 |
+| Semantic Node 与修改边界 | 节点、普通 / Strict、允许行为、共享影响 |
+| 当前代码 Diff | 绑定 base / head SHA |
+| 测试结果 | 对应 head 的命令、退出码、结果、**未验证项** |
+| 规范 | ponytail 与 Project Bootstrap 规范 |
+
+**Reviewer 只读。** 不改代码、不解决冲突、不提交、不合并。只输出两种判定：
+
+```text
+PASS
+原因：<需求、边界、最小实现、测试/回归、同步判断的证据>
+修改要求：无
+```
+
+```text
+REQUEST_CHANGES
+原因：<具体不符合项及证据，不能只说“有风险”>
+修改要求：<可验证的修复或补充证据要求；不授权扩大边界>
+```
+
+**证据不足时只能 REQUEST_CHANGES，不能猜测通过。** 把"别让 AI 说'看起来没问题'"写成协议，比写在提示词里可靠。
+
+**审查五项**：原始需求与范围（含 Strict Node Boundary）→ ponytail 最小实现 → STS 行为守卫 → 测试与回归 → 语义同步。
+
+**Merge Queue 串行化。** 入队顺序是「先 Ready 先入队」——**不按分支创建时间**。Ready = 开发完成 + 本分支测试通过 + Review PASS。后入队的必须基于最新 `main` 重新验证；**之前那次 Review PASS 不是无条件合并的依据**。
+
+**冲突不交给 Reviewer 修。** 集成失败时：`Queue FAIL → 移出队列 → 返回原 Coding Agent → 基于最新 main 重新适配 → 测试 → 重新 Review → 重新入队`。Review Agent 不得直接修改。
+
+**职责边界写死：**
+
+| 角色 | 负责 | 不负责 |
+| --- | --- | --- |
+| Coding Agent | 实现、测试、修复、解决冲突 | 自己批准 Review、直接改 / push `main` |
+| Review Agent | 独立审查，`PASS` / `REQUEST_CHANGES` | 修改代码、适配冲突、执行合并 |
+| Merge Queue | 串行化、同步最新 main、最终集成验证、合并与清理分支 | 替代 Coder 修改失败实现、绕过 Review |
+| Human | 下达任务、设定边界；明确要求时最终 Merge | 默认重复 Review 或 Merge |
+
+**人默认不承担重复的 Review 与 Merge。** 想亲自合并，加一句 `require human merge` 即可——这个开关只改变最终合并责任，不免除独立评审、测试与串行要求。
+
+完整十节规范、Reviewer 可独立执行的契约、`PASS` / `REQUEST_CHANGES` 合成样例见 [接口规范](docs/interface-spec.md)。
+
+**这不是纸面规范——本仓库自己的历史就是按这套跑的。** 每次功能落地都走完了「任务分支 → 独立 Review → merge」：
+
+```text
+*   4351362 merge: land Gateway Flow after independent review
+|\
+| * 21a051a docs: record Gateway Flow acceptance and isolate reviewer context
+|/
+*   d3dbb27 merge: land deployment policy after independent review
+|\
+| * 69cd7ee docs: record deployment policy acceptance evidence
+|/
+*   172cca4 merge: land STS and local-only bootstrap after review
+|\
+| * 44e8c73 fix: reject shared-worktree local exclusions before writes
+|/
+*   1381c53 merge: land agent-first bootstrap after independent review
+|\
+| * 936ed07 fix: atomically preserve rules and Git config on failed install
+|/
+```
+
+四次 merge 全部标注了 independent review，每次都有一个独立的任务分支和一组它自己的提交。
+
+> 注意：本项目交付的是**行为规范**，不会自动配置托管平台的分支保护、权限或 CI / 队列服务。服务端强制保护需要你在远端自行配置——这一点已列在下方短板里。
 
 ### 没做的（是设计选择）
 
