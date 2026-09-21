@@ -4,13 +4,13 @@
 
 # 18trees-Project-Bootstrap
 
-**把一个已经跑了很久的项目交给 AI Agent，而不污染它。**
+**人类看着项目地图说需求，Agent 按纪律开分支、改代码、过独立评审。**
+
+一个**个人定制化的 Bootstrap**：把四层语义地图、工作子 Agent 协作纪律，以及四个已验证的上游 skill 规范，集成为一次可用的项目初始化。
 
 适用于支持 skills 的 Coding Agent（Codex / Claude Code）。人只描述目标，Agent 负责安装、理解、修改、测试、独立 Review 与按队列合并。
 
-它**不发明新规范**——交互规范、编码规范、工程规范分别来自四个已验证的上游 skill，本项目负责把它们集成为一次可用的初始化，并无侵入地装进你已有的项目。
-
-> A minimal-intrusion collaboration layer for AI coding agents working on **existing** codebases: a four-layer semantic map instead of a file tree, a complete Task Branch → Review Gate → Merge Queue → Deployment workflow, and **Local-only by default — nothing enters your Git history**.
+> A personal Bootstrap that integrates a four-layer semantic map, a review-gated sub-agent workflow, and four proven upstream skills into one initialization. Installed non-invasively into existing codebases.
 
 ---
 
@@ -18,16 +18,16 @@
 
 你有一个写了很久的项目。你想让 AI Agent 帮忙改东西，但：
 
-- 它不知道你的项目长什么样，每次都要重新读一遍代码
-- 它会改到不该改的地方，你说不清楚边界
-- 改完之后没有一个独立的评审，你自己也不知道对不对
-- 更烦的是：**这些工具会往你仓库里塞文件**——skills 目录、配置文件、规则文件，全部变成你的提交历史
+- **它不知道你的项目长什么样**——每次都要重新读代码，而你还是得用文件路径和类名跟它说话
+- **它会改到不该改的地方**——你想说"就改这一块"，但"这一块"在代码里对应什么，你说不清楚
+- **改完了没有人独立检查**——它说"已完成"，你也看不出对不对
+- （顺带一提：不少工具还会往你仓库里塞文件，skills 目录、配置文件全变成你的提交历史）
 
-Project Bootstrap 做三件事：
+Project Bootstrap 对应做三件事：
 
-1. **装进去** —— 在已有项目里建立协作规则。**默认 Local-only**：用 Git 条件配置把 Bootstrap 限制在安装所在的工作区，安装前后 tracked / staged diff 不变，普通 `git status` 不增加 Bootstrap 条目
-2. **建立地图** —— 把项目投影成 **Product / Feature / Capability / System** 四层语义地图。你在 Product / Feature 层下任务（"修改 Auth / Session Management"），技术路径留给 Agent 去定位
-3. **跑流程** —— Task Branch → 独立干净上下文的 Review → Merge Queue → 部署模式，职责边界成文
+1. **给项目画一张语义地图**——Product / Feature / Capability / System 四层。你在图上指着说"改这里"，Agent 负责把它映射到实现
+2. **给协作定一套纪律**——每个任务一条分支、自动启动独立 Review、按队列串行合并，职责边界成文
+3. **把好规范引进来**——交互、编码、工程三套规范分别来自四个已验证的上游 skill，不另造一套
 
 然后你只说话：
 
@@ -35,83 +35,31 @@ Project Bootstrap 做三件事：
 
 ---
 
-## 和同类项目比
-
-这个生态已经很成熟了，我们很小。先把全貌摆出来，方便你判断该用哪个。
-
-**数据截至 2026-09-20，star 为当日快照。**
-
-| 项目 | Star | 定位 |
-|---|---:|---|
-| [github/spec-kit](https://github.com/github/spec-kit) | **138,043** | 给 coding agent 结构化流程与可复用模板（spec / plan / tasks / implement） |
-| [ruvnet/ruflo](https://github.com/ruvnet/ruflo)（原 claude-flow） | 72,908 | Agent 编排：多智能体 swarm 与自主协调 |
-| [Fission-AI/OpenSpec](https://github.com/Fission-AI/OpenSpec) | 69,643 | Spec-driven development，主张 fluid not rigid、iterative not waterfall |
-| [bmad-code-org/BMAD-METHOD](https://github.com/bmad-code-org/BMAD-METHOD) | 53,267 | Agile AI Driven Development，覆盖从想法或变更请求到可运行软件的全过程 |
-| [humanlayer/humanlayer](https://github.com/humanlayer/humanlayer) | 11,590 | 复杂代码库里的 human-in-the-loop 审批 |
-| [steipete/agent-rules](https://github.com/steipete/agent-rules) | 5,686 | 给 Claude Code / Cursor 的规则与知识合集 |
-| [buildermethods/agent-os](https://github.com/buildermethods/agent-os) | 5,430 | 从代码库提取既有标准，按需注入 |
-| [michaelshimeles/skills](https://github.com/michaelshimeles/skills) | 1,032 | AGENTS.md 工作流模板 + worktree 隔离 + 证据链 |
-| **本项目** | **0** | 接管**已有项目**：四层语义地图 + 完整工作流闭环 + **默认不污染仓库** |
-
-### 怎么选
-
-| 你的情况 | 建议 |
-|---|---|
-| 想在生成流程前加一层规格，让 Agent 先写清再动手 | spec-kit / OpenSpec |
-| 想要完整敏捷方法论与角色分工（PM / 架构 / 开发 / QA） | BMAD |
-| 想要多智能体 swarm 编排 | ruflo |
-| 想让 Agent 学你代码库既有的标准与约定 | agent-os |
-| 想在关键节点插人工审批 | humanlayer |
-| **项目已有年头，且你不想让 Agent 相关文件进入 Git 历史** | **本项目** |
-| 还在做全新项目、还没有历史包袱 | 上面任选，可能都比本项目合适 |
-
-**一句话**：它们多数在回答"怎么给 Agent 更好的规格"，本项目在回答"**怎么让 Agent 进来，而不在你的项目里留下痕迹**"。
-
----
-
 ## 我们的贡献
 
-**一句话**：本项目是一个**个人定制化的 Bootstrap**。它不发明新规范，而是把已有的优秀 skill 集成为一套开箱可用的项目初始化——并且用无侵入的方式装进你已有的项目。
+### 1. 人类看图驱动代码修改
 
-### 1. 它是一个集成者（这是最主要的工作）
+**这是本项目最核心的交互范式。**
 
-本项目不自己造编码规范、交互规范、工程规范，而是选定四个已验证的上游，把它们编排成一套能协同工作的整体：
+多数 Agent 工具让人用工程语言下命令：文件路径、函数名、模块结构。你得先知道代码长什么样，才能说清楚要改哪里——而这恰恰是你想把活交给 AI 的理由。
 
-| 层 | 上游 | 这一层管什么 |
-|---|---|---|
-| **交互规范** | [i-have-adhd](https://github.com/ayghri/i-have-adhd) | 每条回复怎么组织：行动置顶、编号步骤、每轮进度、具体时间、可见结果 |
-| **编码规范** | [ponytail](https://github.com/DietrichGebert/ponytail) | 怎么实现得尽量小：新代码、新抽象、新依赖与影响面 |
-| **工程规范** | [Stop That Shit](https://github.com/lennney/stop-that-shit) | 什么时候停止继续加东西：范围膨胀、无用防御、意图越界、任务打转 |
-| **可视化** | [archify](https://github.com/tt-a1i/archify) | 四层语义地图的渲染与校验 |
+本项目把项目投影成**四层语义地图**：
 
-**集成本身就是工作。** 这四个上游各自独立、接口不同、正文互不引用。让它们在一套流程里协同——各自的适用边界在哪、Reviewer 按哪套标准审查、上游缺失时怎么办、冲突时听谁的——并把结论固化成初始化模板，是本项目的主要产出。
+```text
+Product  →  Feature / User Flow  →  Capability  →  System / Technical Layer
+    ↑ 人在这里说话                                        ↑ Agent 负责映射到实现
+```
 
-所以本项目**明确不新增竞争性的编码规范**：不定义代码风格、不定义测试规范、不定义目录约定。已有的好规范就用已有的，本项目负责让它们一起工作。
+地图首页第一入口是 **Product / Feature Workflow**，不是文件树，也不是传统架构图。**人主要操作前三层**，说「修改 Auth / Session Management」或「修改登录失败提示」，技术路径由 Agent 定位。
 
-### 2. 无侵入接入已有项目
+由此带来几个直接后果：
 
-安装前后 tracked / staged diff 不变，普通 `git status` 不增加 Bootstrap 条目。用 **Git 条件配置**把影响限制在安装所在的工作区——**不改共享 `info/exclude`、不改全局 Git 配置、不改 `.gitignore`**。想让规范随项目提交，显式选 Standard 模式。
+- **不需要记文件路径或类名。** 你在产品语义层说话，Agent 在技术层找落点。
+- **边界是可指认的。** 说「只修改 NODE:X」就是硬边界——Agent 不得越界；需要涉及其他节点时必须停下说明，等你重新定义。这比口头说"别改太多"可执行得多。
+- **同一份 manifest，两种读者。** 渲染成离线可查的 HTML 给人看，同时是 Agent 定位实现的索引。
+- **真相链是单向的。** `Codebase → Semantic Project Manifest → HTML Project Map`。路径、类名只进 metadata，不污染人看的那一层。
 
-并且**可逆**：`deinit` 恢复 exclude 原字节、恢复薄入口原内容、保留你的任务改动。薄入口对已有文件只**追加自己的标记区块**，不改已跟踪的 `AGENTS.md` / `CLAUDE.md`。
-
-### 3. 一次初始化，四类规范全部到位
-
-初始化的产出不是几个占位文件，而是一套能立刻开工的协作环境：
-
-| 类别 | 装了什么 |
-|---|---|
-| **编码规范** | ponytail 的最小实现原则、新依赖与新抽象的门槛、影响面判定 |
-| **交互规范** | i-have-adhd 的输出结构：行动置顶、编号步骤、每轮重述进度、具体时间、可见结果 |
-| **工程规范** | Stop That Shit 的 S/H/I/T 四类识别与判断顺序；Strict Node Boundary；Reviewer 的审查项 |
-| **配置约定** | Git 工作流（分支命名、Review Gate、Merge Queue、`require human merge`）、Deployment Mode、薄入口与加载方式 |
-
-这些结论全部写进目标项目的 `AGENTS.md` 与项目 skill，新会话直接加载，**不需要你重新解释一遍规则**。
-
-### 4. 四层语义地图
-
-Product / Feature Workflow / Capability / System。人类在前两层操作（"修改 Auth / Session Management"），技术路径留给 Agent 定位——不需要记文件路径或类名。用 archify 生成，可完全离线查看。
-
-### 5. 工作子 Agent 编排：每个任务一条分支 + 强制独立 Review
+### 2. Agent 协作纪律：每个任务一条分支 + 强制独立 Review
 
 这是本项目在**工程流程**上的主要产出，也是它和"给 Agent 加个 AGENTS.md"最不一样的地方。
 
@@ -208,6 +156,40 @@ REQUEST_CHANGES
 
 > 注意：本项目交付的是**行为规范**，不会自动配置托管平台的分支保护、权限或 CI / 队列服务。服务端强制保护需要你在远端自行配置——这一点已列在下方短板里。
 
+### 3. 把已验证的优秀规范引进来（集成者）
+
+本项目**不发明新规范**。它选定四个已验证的上游，把它们编排成一套能协同工作的整体：
+
+| 层 | 上游 | 这一层管什么 |
+|---|---|---|
+| **交互规范** | [i-have-adhd](https://github.com/ayghri/i-have-adhd) | 每条回复怎么组织：行动置顶、编号步骤、每轮进度、具体时间、可见结果 |
+| **编码规范** | [ponytail](https://github.com/DietrichGebert/ponytail) | 怎么实现得尽量小：新代码、新抽象、新依赖与影响面 |
+| **工程规范** | [Stop That Shit](https://github.com/lennney/stop-that-shit) | 什么时候停止继续加东西：范围膨胀、无用防御、意图越界、任务打转 |
+| **可视化** | [archify](https://github.com/tt-a1i/archify) | 四层语义地图的渲染与校验 |
+
+**集成本身就是工作。** 这四个上游各自独立、接口不同、正文互不引用。让它们在一套流程里协同——各自的适用边界在哪、Reviewer 按哪套标准审查、上游缺失时怎么办、冲突时听谁的——并把结论固化成初始化模板，是本项目的主要产出。
+
+初始化的产出不是几个占位文件，而是一套能立刻开工的协作环境：
+
+| 类别 | 装了什么 |
+|---|---|
+| **编码规范** | ponytail 的最小实现原则、新依赖与新抽象的门槛、影响面判定 |
+| **交互规范** | i-have-adhd 的输出结构：行动置顶、编号步骤、每轮重述进度、具体时间、可见结果 |
+| **工程规范** | Stop That Shit 的 S/H/I/T 四类识别与判断顺序；Strict Node Boundary；Reviewer 的审查项 |
+| **配置约定** | Git 工作流（分支命名、Review Gate、Merge Queue、`require human merge`）、Deployment Mode、薄入口与加载方式 |
+
+这些结论全部写进目标项目的 `AGENTS.md` 与项目 skill，新会话直接加载，**不需要你重新解释一遍规则**。
+
+所以本项目**明确不新增竞争性的编码规范**：不定义代码风格、不定义测试规范、不定义目录约定。已有的好规范就用已有的，本项目负责让它们一起工作。
+
+### 4. 附带特性：非侵入安装，可逆
+
+前面三条是主动能力；这一条是让它们**不付出代价**的前提。
+
+安装前后 tracked / staged diff 不变，普通 `git status` 不增加 Bootstrap 条目。用 **Git 条件配置**把影响限制在安装所在的工作区——**不改共享 `info/exclude`、不改全局 Git 配置、不改 `.gitignore`**。想让规范随项目提交，显式选 Standard 模式。
+
+并且**可逆**：`deinit` 恢复 exclude 原字节、恢复薄入口原内容、保留你的任务改动。薄入口对已有文件只**追加自己的标记区块**，不改已跟踪的 `AGENTS.md` / `CLAUDE.md`。
+
 ### 没做的（是设计选择）
 
 - **不生成代码。** 它建立协作环境，不替你写业务实现。
@@ -274,7 +256,7 @@ Python 3.12+、Node.js 22+、Git，以及 [archify](https://github.com/tt-a1i/ar
 
 ## 仓库结构
 
-```
+```text
 .
 ├── README.md / MANUAL.md / INSTALL.md / AGENTS.md   入口文档
 ├── bootstrap.py                     CLI：init / map / validate / verify-install / deinit
@@ -300,6 +282,40 @@ python -m unittest discover -s tests -v
 ```
 
 工程遵循 ponytail，开发流程遵循本仓库 [AGENTS.md](AGENTS.md) 里定义的 Gateway Flow。贡献前请读 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+---
+
+## 和同类项目比
+
+这个生态已经很成熟了，我们很小。先把全貌摆出来，方便你判断该用哪个。
+
+**数据截至 2026-09-20，star 为当日快照。**
+
+| 项目 | Star | 定位 |
+|---|---:|---|
+| [github/spec-kit](https://github.com/github/spec-kit) | **138,043** | 给 coding agent 结构化流程与可复用模板（spec / plan / tasks / implement） |
+| [ruvnet/ruflo](https://github.com/ruvnet/ruflo)（原 claude-flow） | 72,908 | Agent 编排：多智能体 swarm 与自主协调 |
+| [Fission-AI/OpenSpec](https://github.com/Fission-AI/OpenSpec) | 69,643 | Spec-driven development，主张 fluid not rigid、iterative not waterfall |
+| [bmad-code-org/BMAD-METHOD](https://github.com/bmad-code-org/BMAD-METHOD) | 53,267 | Agile AI Driven Development，覆盖从想法或变更请求到可运行软件的全过程 |
+| [humanlayer/humanlayer](https://github.com/humanlayer/humanlayer) | 11,590 | 复杂代码库里的 human-in-the-loop 审批 |
+| [steipete/agent-rules](https://github.com/steipete/agent-rules) | 5,686 | 给 Claude Code / Cursor 的规则与知识合集 |
+| [buildermethods/agent-os](https://github.com/buildermethods/agent-os) | 5,430 | 从代码库提取既有标准，按需注入 |
+| [michaelshimeles/skills](https://github.com/michaelshimeles/skills) | 1,032 | AGENTS.md 工作流模板 + worktree 隔离 + 证据链 |
+| **本项目** | **0** | 看图驱动的交互 + 协作纪律 + 集成已验证规范，装进**已有项目**且不留痕迹 |
+
+### 怎么选
+
+| 你的情况 | 建议 |
+|---|---|
+| 想在生成流程前加一层规格，让 Agent 先写清再动手 | spec-kit / OpenSpec |
+| 想要完整敏捷方法论与角色分工（PM / 架构 / 开发 / QA） | BMAD |
+| 想要多智能体 swarm 编排 | ruflo |
+| 想让 Agent 学你代码库既有的标准与约定 | agent-os |
+| 想在关键节点插人工审批 | humanlayer |
+| **想让不懂代码结构的自己也能看图指挥改动，且要有强制独立评审** | **本项目** |
+| 还在做全新项目、还没有历史包袱 | 上面任选，可能都比本项目合适 |
+
+**一句话**：它们多数在回答"怎么给 Agent 更好的规格"，本项目在回答"**人怎么在不读代码的前提下指挥改动，并且改动必须过独立评审**"。
 
 ## License
 
