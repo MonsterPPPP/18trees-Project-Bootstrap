@@ -2,6 +2,10 @@
   <img src="./assets/banner.webp" alt="十八木" width="100%" />
 </p>
 
+<p align="center">
+  中文 · <a href="./README.en.md">English</a>
+</p>
+
 # 18trees-Project-Bootstrap
 
 **人类看着项目地图说需求，Agent 按纪律开分支、改代码、过独立评审。**
