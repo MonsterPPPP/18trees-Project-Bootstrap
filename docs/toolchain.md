@@ -20,10 +20,15 @@ Workflow 是有序且不重复节点的一次用户旅程；有重试循环时�
 
 人通过项目 Agent 安装，执行流程见 [INSTALL.md](../INSTALL.md)。CLI 是 Agent 的内部工具。
 init 仅在完整 Bootstrap 源仓库执行；目标内副本支持 map、validate、verify-install 与 deinit。
-默认 Local-only + Local-first，不交互询问；Standard 与 Production-direct 需用户明确选择。
+正文默认 Local-only；首次 init 必须显式传 --deployment-mode 和 --agent-doc-mode isolated|indexed，缺项零写入失败。
+选择工具由宿主 Agent 调用，CLI 不读取 terminal 默认值、不证明用户授权；Standard 仍须额外明确选择。
 
-Local-only 安装在 .project-bootstrap/，两个根薄入口指向同一协作配置与 skill。
-原 AGENTS.md / CLAUDE.md 不修改；已有未跟踪薄入口只追加区块，原内容卸载时保留。
+Local-only 正文安装在 .project-bootstrap/。isolated 使用两个本地薄入口；indexed 向存在的 AGENTS.md、CLAUDE.md、.claude/CLAUDE.md 追加条件索引，缺对应核心文档则使用薄入口。
+核心文档不被整体替换；tracked 核心文档仅索引可见可提交，其他产物仍排除。覆盖入口冲突先停止，不擅改其他规则。
+索引只追加到 UTF-8（可带 BOM）文档，原字节和换行保留；其他编码先停止交用户决定，不混写或自动转换。
+索引使用普通条件文字，不用无条件 @ 导入；没有本地规则就忽略，不给其他协作者安装或授权。
+新状态 version 3 记录 agent_doc_mode、entry_existed、indexed_entries、reused_entries，区块模板为固定内容，不从状态接受任意待删除文本。
+v2 状态继续按原 isolated 模式检查/卸载，不补写或静默迁移。已提交相同索引复用；Git checkout 导致 CRLF 时按实际区块字节核对和移除。
 Standard 保留既有路径，另增加 docs/project/usage.md；两种模式的手册均直接复制 MANUAL.md。
 重复本地安装执行 verify-install，不覆盖编辑；Standard 相同内容跳过、不同内容报冲突。
 旧版 Local-only 要先备份并经确认卸载，不自动迁移；源码保留旧版 deinit 路径。
@@ -39,10 +44,13 @@ Git directory 含 glob 或引号/换行等不能安全绑定的字符时拒绝�
 同一仓库的安装与卸载串行执行；不声称提供并发事务或防人为强制添加机制。
 
 verify-install <目标> 核对本地状态、薄入口、模式、Git 排除和 manifest/map 一致性。
-它不证明实际业务语义、客户端自动发现或新会话行为。新增 worktree 后需要 Agent 接入并验证。
+它只做技术自查，不证明规则无冲突或独立验收通过。安装 CLI 输出文件落地、等待验收，不报告初始化完成。
+安装 Agent 按 INSTALL.md 完成写入前语义冲突检查和写入后只读 Installation Verifier；两者是 Agent 行为协议，不是脚本自动推理。
+诊断冲突时目标项目零写入；无子 Agent、失败或未 PASS 保留未完成状态，不伪造结果。新增 worktree 也需接入并验收。
 map 的本地输出限制在 .project-bootstrap/docs/；后续生成物同样不能散落到任务目录。
-deinit <目标> 仅预览，确认后 --yes 删除专属目录、自有入口区块与条件配置；保留入口其他内容与其他配置。
-检测到跟踪/暂存文件、symlink / junction 或清理区块损坏时先停止；不修改索引或遍历外部目录。
+deinit <目标> 仅预览，确认后 --yes 删除专属目录、本次拥有的入口/索引区块与条件配置；保留原文、既有复用索引和其他配置。
+已跟踪索引删除产生普通 Git 差异，不改索引区之外的用户编辑、Git 暂存区或提交历史。
+除授权的 indexed 核心文档外，检测到跟踪/暂存本地产物、symlink / junction 或清理区块损坏时先停止；不修改索引或遍历外部目录。
 
 部署配置：Standard 位于根 AGENTS.md，Local-only 位于 .project-bootstrap/AGENTS.md。
 重复 init 不用于模式切换；用户明确改变授权时由 Agent 写回配置，原项目限制不能被默认值放宽。

@@ -10,7 +10,8 @@
 Bootstrap Mode: Standard
 
 人类安装入口是目标项目 Agent 对话框；README 只提供对话示例，INSTALL.md 面向执行安装的 Agent。
-目标项目默认 Local-only + Local-first；本地工具与薄入口不得改变原规则或进入业务提交。
+目标项目正文默认 Local-only；首次安装强制用选择工具确认部署模式和 isolated/indexed 文档方式。
+只有用户授权的条件索引可入 Git，引用不存在就忽略；写入前冲突检查，写入后独立 Installation Verifier PASS 才完成。
 
 Engineering Protocol 同时使用 Ponytail + [Stop That Shit](https://github.com/lennney/stop-that-shit) + Semantic Boundary。
 采用完成需求所需的最小充分修改，必要调用方、迁移与测试不能省略；禁止无需求扩张与重复工作。

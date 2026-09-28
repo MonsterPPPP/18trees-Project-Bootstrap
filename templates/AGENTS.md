@@ -2,22 +2,31 @@
 
 Bootstrap Mode: @@BOOTSTRAP_MODE@@
 
-人类唯一操作入口是当前项目 Agent 对话框。安装和日常命令由 Agent 执行，不把工具操作交给人。
-每次任务开始读取本文件的 Bootstrap Mode 与 Deployment Mode，不重复询问。
-Local-only 的配置入口是 `.project-bootstrap/AGENTS.md`，Standard 使用根目录 `AGENTS.md`。
-先保留原项目 AGENTS.md、CLAUDE.md 和嵌套规则；有冲突须明确说明，不能默默覆盖原规则。
+Agent Document Mode: @@AGENT_DOC_MODE@@
 
-Local-only 全部产物只在本地，不得暂存、提交、进入分支或 PR，不得 git add -f。
-内容存放在 `.project-bootstrap/`；根目录两个薄入口仅引用本规范，保留原有内容。
-每次任务先由 Agent 执行 `python .project-bootstrap/bootstrap.py verify-install .`，核对 Git 隔离。
-先从本地 rules.md 读取已记录的 Python / archify 执行路径，复用该环境；
-缺少依赖时按源仓库 INSTALL.md 在项目外准备并记录，不能修改项目依赖。
-创建或进入新 worktree 时由 Agent 按同一安装说明接入并验证；未安装不能声称已继承。
-Local-only 的配置、规则、地图、截图及报告全部留在专用目录；任务分支只包含真实任务内容。
-Local-only 管 Git 可见性，Local-first 管部署去向；Gateway Flow、Deployment、STS 与语义边界照常执行。
-人说“移除 Bootstrap”时，先由 Agent 预览清理范围并让人确认，再执行 deinit --yes；
-保留真实任务、原规则和入口中非 Bootstrap 的内容。旧版安装先备份，确认卸载后再迁移。
-向人解释操作时引用 `docs/project/usage.md`，不要求人运行 CLI。
+人类唯一操作入口是项目 Agent 对话框。首次安装必须唤起选择工具，让人确认 Deployment Mode 和 Agent Document Mode；
+推荐项、超时、无回复均不是授权。缺工具时逐项在对话中询问；已安装项目沿用有效记录，不重复询问。
+只有索引允许进入 Git：indexed 在用户同意的原核心文档追加条件索引，其余 Bootstrap 正文和产物留在本地。
+isolated 不修改原核心文档，使用本地薄入口。索引引用的本地文件不存在时忽略，不安装、不下载、不要求协作者补齐。
+Local-only 的配置入口为 `.project-bootstrap/AGENTS.md`；显式 Standard 使用根 AGENTS.md，并保留原无覆盖布局。
+
+首次写入前由安装 Agent 读取原核心/覆盖/嵌套规则与引用流程，逐条检查 Git、Review、部署、语义边界及子 Agent 限制。
+无法兼容的冲突立即终止安装，列出位置、原规则、Bootstrap 要求、原因和待裁决事项，等待用户决定后重新检查。
+允许添加索引不授权改写旧规则。更严格但兼容的限制应保留，例如 require human merge；不能静默宣布 Bootstrap 优先。
+安装后先技术自查，再启动独立干净上下文的安装验收子 Agent，由它沿实际入口读取原规则、规范和 skill，并用合成任务检查流程。
+验收子 Agent 只读，返回 PASS / REQUEST_CHANGES；不能继承安装 Agent 的结论，不能修改、提交或部署。
+无子 Agent、启动失败或未 PASS，只能报告“文件已落地，初始化验收未完成”。详细契约见接口规范的安装验收章节。
+这是 Installation Verifier；开发任务的 Review Subagent 仍只接收既有五类评审包，不混用两个角色。
+
+Local-only 的正文、地图、截图及报告均存入 .project-bootstrap/，不得暂存或强制添加；indexed 仅授权索引可按 Gateway Flow 提交。
+记录入库文件中的索引不会使其他协作者获得本机生产授权。安装本身不发布生产；两种部署模式均遵守必要检查。
+每次任务先用已记录的外部 Python 执行 `python .project-bootstrap/bootstrap.py verify-install .`，核对本地文件与索引；
+该命令只证明技术一致性，不能替代语义冲突判断或独立安装验收。执行路径记录在本地 rules.md，不改业务依赖。
+进入新 worktree 先检查是否已安装；同一项目已有明确且适用的选择可沿用，否则必须重新提问；每次新安装均需冲突检查及独立验收。
+indexed 写入原文档必须在 Task Branch，提交前核对只包含自身索引，不能混入人的未提交改动。
+退出请求先预览 deinit、备份需要保留的内容，确认后 --yes；只移除本次拥有的区块，保留其他内容与任务改动。
+已提交索引的移除作为普通 Git 差异处理，不改历史；从他处继承的既有索引可保留为无本地规则时的空操作。
+人类使用说明见 `docs/project/usage.md`，日常仍只说目标，不操作 CLI。
 
 按 Product → Feature / User Flow → Capability → System / Technical Layer 理解项目。
 先读 `docs/project/overview.md` 和 `.bootstrap/interface-spec.md`，再读取
@@ -132,13 +141,13 @@ Deployment Mode: @@DEPLOYMENT_MODE@@
 用户可以显式修改此行。缺失或无效时不得推断生产授权，应说明配置问题。
 用户在初始化主动选择 Production-direct，即授予长期 Production Deployment 权限；
 一次长期授权替代每次部署前确认，后续任务检查全部通过即自动部署，不再次问是否部署。
-初始化选择 Local-first 或未指定模式，均不授予生产权限。
+只有用户选择 Local-first 才使用该模式；未选择不得开始首次安装，不能推断任何部署授权。
 
 **Deployment · 按模式执行**
 
 | 模式 | 完成开发后的行为 |
 |---|---|
-| Local-first（默认） | 完成修改 → 执行测试 → 启动 Local / Preview → 提供可查看入口 → 停止；不得自行进入 Production，只有用户明确提出部署生产环境才继续 |
+| Local-first（只同步仓库，不自动部署生产） | 完成修改 → 执行测试 → 启动 Local / Preview → 提供可查看入口 → 停止；不得自行进入 Production，只有用户明确提出部署生产环境才继续 |
 | Production-direct | 完成修改 → 执行测试 → 执行项目 Deployment Check → 检查全部通过 → 自动部署 Production；长期授权不代表跳过检查 |
 
 Local-first 适用于 UI / UX 调整、产品功能验证、尚需人工确认效果或生产风险较高的项目。

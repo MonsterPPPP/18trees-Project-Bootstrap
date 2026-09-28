@@ -14,7 +14,7 @@
 
 适用于支持 skills 的 Coding Agent（Codex / Claude Code）。人只描述目标，Agent 负责安装、理解、修改、测试、独立 Review 与按队列合并。
 
-> A personal Bootstrap that integrates a four-layer semantic map, a review-gated sub-agent workflow, and four proven upstream skills into one initialization. Installed non-invasively into existing codebases.
+> A personal Bootstrap that integrates a four-layer semantic map, a review-gated sub-agent workflow, and four proven upstream skills into one initialization. Offers a choice of local-only entry points or optional tracked indexes in existing agent documents.
 
 ---
 
@@ -186,13 +186,17 @@ REQUEST_CHANGES
 
 所以本项目**明确不新增竞争性的编码规范**：不定义代码风格、不定义测试规范、不定义目录约定。已有的好规范就用已有的，本项目负责让它们一起工作。
 
-### 4. 附带特性：非侵入安装，可逆
+### 4. 附带特性：选择接入方式，可逆
 
-前面三条是主动能力；这一条是让它们**不付出代价**的前提。
+初始化必须选择：是否允许在现有 Agent 文档添加规则索引。
 
-安装前后 tracked / staged diff 不变，普通 `git status` 不增加 Bootstrap 条目。用 **Git 条件配置**把影响限制在安装所在的工作区——**不改共享 `info/exclude`、不改全局 Git 配置、不改 `.gitignore`**。想让规范随项目提交，显式选 Standard 模式。
+选择**不允许**时，原核心文档不变，使用本地薄入口；选择**允许**时，只追加带标记的条件索引，
+这部分可进入 Git，Bootstrap 正文、地图和配置仍留在本地。索引写明：**本地规则不存在就忽略**，
+不替协作者安装、不要求补齐，也不让其继承你的部署授权。
 
-并且**可逆**：`deinit` 恢复 exclude 原字节、恢复薄入口原内容、保留你的任务改动。薄入口对已有文件只**追加自己的标记区块**，不改已跟踪的 `AGENTS.md` / `CLAUDE.md`。
+使用 **Git 条件配置**隔离工作区，不改共享 `info/exclude`、全局 Git 配置或 `.gitignore`。
+`deinit` 只移除本次拥有的区块与本地内容，保留原规则和任务改动；已提交索引的删除作为普通差异处理。
+要让完整规范随项目提交，另行明确选择 Standard；“允许索引”不会自动切换该模式。
 
 ### 没做的（是设计选择）
 
@@ -217,9 +221,17 @@ REQUEST_CHANGES
 
 在目标项目的 Coding Agent 对话框里发：
 
-> 请根据这个仓库，在当前项目初始化 Project Bootstrap：`https://github.com/MonsterPPPP/18trees-Project-Bootstrap`。仅本地生效，不把 Bootstrap 文件带进 Git；保留项目已有规则，完成后告诉我怎么使用。
+> 请根据这个仓库，在当前项目初始化 Project Bootstrap：`https://github.com/MonsterPPPP/18trees-Project-Bootstrap`。先让我选择交付方式和是否允许添加规则索引，检查旧规则冲突，独立验收通过后告诉我怎么使用。
 
-Agent 会读 [INSTALL.md](INSTALL.md) 并执行全流程——准备依赖、理解项目、生成地图、校验安装。
+Agent 会读 [INSTALL.md](INSTALL.md)，先唤起选择工具，必须等你确认两项：
+
+| 必选项 | 选项 |
+|---|---|
+| 任务交付 | 只同步仓库、不自动部署生产；或检查通过后自动部署生产（长期授权） |
+| 文档接入 | 允许在原 Agent 文档添加可提交的条件索引；或不允许，使用本地入口 |
+
+没有隐式默认。旧规则冲突时终止安装，列明冲突供你决策；无冲突才准备依赖、安装并生成地图。
+技术检查后自动启动独立子 Agent 验证加载与流程，PASS 后才报告完成；安装本身不发布生产。
 
 ### 前置条件
 
@@ -229,7 +241,7 @@ Python 3.12+、Node.js 22+、Git，以及 [archify](https://github.com/tt-a1i/ar
 
 **它在你的机器上执行命令**：克隆源码、建 venv、跑 `bootstrap.py init`、修改工作区的 Git 本地配置、生成地图文件。网页版 ChatGPT / Gemini / DeepSeek / Kimi / 豆包 没有工具能力，做不到这些。
 
-需要的是**能执行 shell 命令、能读写文件的 Coding Agent**（Codex / Claude Code，或同类）。
+需要的是**能执行 shell 命令、读写文件并启动独立上下文子 Agent 的 Coding Agent**（Codex / Claude Code，或同类）。
 
 判断一个项目能不能靠粘贴使用，看它**需不需要执行命令或访问文件系统**：
 
@@ -254,7 +266,7 @@ Python 3.12+、Node.js 22+、Git，以及 [archify](https://github.com/tt-a1i/ar
 
 详细说明见 [人类使用手册](MANUAL.md)。
 
-**默认 Local-only + Local-first**：Bootstrap 留在本机，生产发布需要明确授权。
+**正文默认 Local-only，两项配置必须选择**：是否自动上生产、是否允许条件索引入库，均由你在初始化时决定。
 
 ---
 
