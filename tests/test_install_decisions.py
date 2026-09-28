@@ -114,6 +114,26 @@ class InstallDecisionTests(unittest.TestCase):
             app.deinitialize(root, yes=True)
             self.assertEqual((root / "AGENTS.override.md").read_text(), "later owner override")
 
+    def test_dangling_client_rule_links_fail_before_install_writes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            for name in ("CLAUDE.md", ".claude/CLAUDE.md"):
+                with self.subTest(entry=name):
+                    root = Path(temp) / name.replace("/", "-")
+                    repository(root)
+                    git(root, "rm", "CLAUDE.md")
+                    link = root / name
+                    link.parent.mkdir(exist_ok=True)
+                    before_status = git(root, "status", "--porcelain")
+                    before_config = (root / ".git/config").read_bytes()
+                    original_is_symlink = Path.is_symlink
+                    with patch.object(Path, "is_symlink", lambda path: path == link or original_is_symlink(path)):
+                        with self.assertRaisesRegex(ValueError, "链接或 junction"):
+                            app.initialize(root, "合成", deployment_mode="Local-first", agent_doc_mode="indexed")
+                    self.assertEqual(git(root, "status", "--porcelain"), before_status)
+                    self.assertEqual((root / ".git/config").read_bytes(), before_config)
+                    self.assertFalse(link.exists())
+                    self.assertFalse(bundle(root).exists())
+
     def test_index_line_endings_and_atomic_failure(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp) / "line-endings"

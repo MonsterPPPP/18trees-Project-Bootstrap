@@ -430,6 +430,8 @@ def excluded_paths(state):
 
 
 def plan_entries(root, mode):
+    for name in (*CORE_DOCS, *ENTRY_NAMES):
+        check_target(root, name)
     names, indexed = [], []
     if mode == "isolated":
         names.extend(ENTRY_NAMES)
