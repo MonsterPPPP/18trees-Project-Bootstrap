@@ -271,15 +271,16 @@ REQUEST_CHANGES
 
 **Deployment 规范 · 1. 初始化时选择部署模式**
 
-项目初始化时选择 Deployment Mode，默认 **Local-first**。
-人通过项目 Agent 对话框选择；未明确指定时使用 Local-first，不要求人操作 CLI 或选择默认参数。
+首次初始化必须由用户选择 Deployment Mode，**没有自动采用的默认值**。
+Agent 必须唤起当前宿主的选择工具，展示“只同步仓库，不自动部署生产”和“检查通过后自动部署生产”。
+两项分别对应 Local-first / Production-direct；推荐项不等于已确认。无选择工具时在对话逐项询问，未回答不得安装。
 也可明确传 `--deployment-mode Local-first` 或 `--deployment-mode Production-direct`。
 Agent 代用户初始化时不得自行选择 Production-direct，必须有用户的主动选择；
 Agent 使用命令参数将用户明确授权落盘，初始化本身不执行部署。
 
 | 模式 | 流程与授权 |
 |---|---|
-| Local-first（默认） | Agent 完成修改 → 执行测试 → 启动 Local / Preview 环境 → 提供可查看入口 → 停止。Agent 不得自行进入 Production；只有用户明确提出部署生产环境后，才可以继续 Production Deployment |
+| Local-first（用户选择仅同步仓库） | Agent 完成修改 → 执行测试 → 启动 Local / Preview 环境 → 提供可查看入口 → 停止。Agent 不得自行进入 Production；只有用户明确提出部署生产环境后，才可以继续 Production Deployment |
 | Production-direct | 用户在初始化主动选择即授予 Agent 长期 Production Deployment 权限。Agent 完成修改 → 执行测试 → 执行项目 Deployment Check → 检查全部通过 → 自动部署 Production；后续任务完成无需再次询问是否部署 |
 
 Local-first 适用于 UI / UX 调整、产品功能验证、尚需人工确认效果的任务和生产风险较高的项目。
@@ -325,7 +326,7 @@ Local / Preview 可用于查看任务分支效果，但不替代 Review 或 Merg
 自动 Merge 不等于生产授权。若已有 main 流水线会连带发布 Production，Local-first 下先按项目已有机制
 阻止生产发布再合并；不能分离时说明阻碍并保留分支，不能利用 Merge 绕过部署策略。
 两种模式都不豁免 Strict Node Boundary 或项目已有部署要求。Reviewer 仍只读判断，不承担部署执行。
-最终原则：**Local-first 默认保护生产环境；Production-direct 提供经用户预授权后的自动部署能力**。
+最终原则：**Local-first 不自动发布生产；Production-direct 使用经用户明确选择的长期授权**。
 Bootstrap 只安装规范与配置模板，不创建部署平台、统一 CI/CD 或真实业务部署实现。
 
 **Agent 对话框 · 唯一人类操作入口**
@@ -334,11 +335,14 @@ Bootstrap 只安装规范与配置模板，不创建部署平台、统一 CI/CD 
 README 引导 Agent 读取源仓库 INSTALL.md；依赖准备、CLI、排错、地图生成与卸载由 Agent 执行。
 人类手册只教人如何表达目标、边界、查看结果和退出，不把 shell 命令当成人的安装步骤。
 源码与依赖环境放在目标项目之外；不修改业务依赖清单、锁文件或已有未提交改动。
-安装后当前会话主动读取规则，新会话通过薄入口加载。客户端是否加载须以实际会话验证，不能只验文件。
+首次安装先完成两项选择与规则冲突检查；文件落地后当前会话主动读取规则，再由独立安装验收子 Agent 验证加载和流程。
+人类与工具的“选择”“安装文件就位”“技术验证”“独立验收”是不同状态，不得混称完成。
 
 **初始化落地模式 · Local-only（默认） / Standard（显式）**
 
-初始化不交互询问参数，默认 Local-only + Local-first。Standard 仅在人明确要求规范随项目提交时使用。
+Bootstrap 内容默认 Local-only；Deployment Mode 与 Agent Document Mode 必须通过选择工具明确确认。
+Standard 仅在人另外明确要求完整规范随项目提交时使用；允许索引不自动切换 Standard。
+CLI 的首次 init 必须带 --deployment-mode 与 --agent-doc-mode，缺项在写入前失败；CLI 不替宿主唤起 UI，也不能证明参数确由人选择。
 重复初始化保留已安装模式和本地编辑，不承担升级；模式变更须由人显式提出。
 Local-only 须位于已有 Git 工作区根目录，不擅自 git init。Standard 保留原来的无覆盖文件布局。
 
@@ -354,17 +358,58 @@ Local-only 须位于已有 Git 工作区根目录，不擅自 git init。Standar
 metadata 始终相对于目标项目根目录，隐藏目录不是业务源根。读取代码后生成语义投影，空项目保持 planned。
 人类使用说明安装为 docs 下的 usage.md，与根 MANUAL.md 使用同一份内容；Agent 提供其绝对路径入口。
 
-**已有规则与本地薄入口**
+**首次安装第二项必选 · Agent Document Mode**
 
-根 AGENTS.md、CLAUDE.md、已有文档和嵌套规则不覆盖、不取消跟踪。
-AGENTS.override.md 引导读取原 AGENTS.md，然后读取统一配置和 skill；CLAUDE.local.md 引入同一份配置。
-两者仅是薄入口，不维护两套客户端安装流程。Codex 每目录只发现一个 AGENTS 文件，因此不能省略原规则读取。
-已有未跟踪薄入口只追加可识别区块，保留原内容；已跟踪/暂存、链接或不完整旧区块在写入前报错。
-冲突须说明并等待必要裁决，不因为 Bootstrap 的默认授权放宽原项目限制。其他客户端读取同一入口，未经验证不声明自动加载。
+| 选择 | 参数 | 文件与 Git 边界 |
+|---|---|---|
+| 不允许修改原 Agent 文档 | `--agent-doc-mode isolated` | 沿用本地薄入口，原核心文档字节不变 |
+| 允许添加条件规则索引 | `--agent-doc-mode indexed` | 仅在用户确认的既有核心文档追加短索引；这些索引可按 Gateway Flow 提交，正文仍在本地 |
+
+首次安装前先识别并展示候选路径。脚本识别根 AGENTS.md、CLAUDE.md 及 .claude/CLAUDE.md，
+不存在的核心文档使用对应本地薄入口；不递归修改嵌套规则，不自动为第三方命名文档创建适配器。
+AGENTS.override.md 遮蔽原 AGENTS.md 时先停止并由用户确定入口，不通过索引偷偷绕过覆盖规则。
+已有未提交内容、原编码与换行保留，区块外不重写。非法链接、损坏/重复标记均在写入前拒绝。
+索引只追加到 UTF-8（可带 BOM）文档，原字节和换行保留；其他编码先停止交用户决定，不混写或自动转换。
+Standard 仍保留原无覆盖布局；已有不同文档报冲突，不因选择 indexed 而覆盖。两种必选值仍记录在新配置中。
+
+可提交索引固定为带标记的条件性说明：只有项目根目录 .project-bootstrap/AGENTS.md 存在时才读取该文件及 skill；
+不存在则忽略本区块、继续原项目规则，不下载、不自动安装、不提示协作者补齐。不能用无条件 @ 导入替代这个判断。
+索引不包含本机路径、部署授权、规则正文、秘密或个人配置；其他协作者不因此继承本机授权。
+若相同索引已随分支进入工作区，则复用并记录为非本次所有；不重复追加，卸载时保留该既有索引。
+
+**安装前规则冲突检查（目标项目零写入）**
+
+安装 Agent 读取现有核心文档、实际生效的覆盖/嵌套规则及其引用的相关流程。
+结合两项选择，核对 Git/Review/Merge、部署权限和自动发布流水线、语义边界、可修改文件及子 Agent 限制。
+自然语言冲突由 Agent 逐条判断，工具不宣称可用关键词或 schema 自动证明兼容。
+
+无法同时满足的规则必须终止本次安装，目标文件、索引和本地 Git 配置保持原样；诊断先写在对话或项目外。
+每条冲突列出“原规则及位置 → Bootstrap 要求 → 不兼容原因 → 需要用户决定的事项”，不只给笼统提示。
+用户可改安装选择、明确授权修订具体旧规则，或取消；做出决定后必须重新核对，不能自动继续旧检查结果。
+允许索引不等于授权改写旧规则。已有更严格但兼容的要求保留，例如 require human merge 是可用配置，不必当作冲突。
+检查通过后将两项选择、已读规则、兼容决定和证据写入安装文档中的 installation-check.md；不复制秘密或无关私有内容。
+
+**安装后独立验收（Installation Verifier）**
+
+文件落地不代表初始化完成。安装 Agent 先运行技术自查，再自动唤起独立干净上下文子 Agent。
+只交付目标目录、验收任务和用户确认的选择，不灌输安装结论或规则答案。子 Agent 可沿真实入口读取项目，
+不同于开发任务的 Review Subagent（后者只能使用五类评审包）；两者的只读、不改代码原则一致。
+
+1. 沿项目实际生效入口读取原规则、Bootstrap 规范和 skill，报告对应文件位置与可核对依据，不只说“已加载”。
+2. 确认两项选择和原项目限制，核对安装 Agent 的技术检查证据及 Git 差异；只有授权索引允许可见。
+3. 用合成修改任务说明定位节点、Task Branch、测试、独立 Review、Merge Queue 和部署去向，并用严格节点边界反例验证会停止。
+4. 只读输出 PASS 或 REQUEST_CHANGES，给出原因和修改要求；不得写文件、提交、调用真实部署或通过创建生产资源演练。
+5. 安装 Agent 记录原始验收结果与身份/任务引用；只有 PASS 且技术检查通过，才向人报告初始化完成。
+
+无子 Agent 能力、启动失败或未 PASS，状态是“文件已落地，初始化验收未完成”，保留可恢复状态，不伪造 PASS。
+修复仅由安装 Agent 在授权范围内做，必要时重新独立验收；不能把三个失败后的停止要求丢掉。
+验收证明加载与流程理解，不证明真实生产发布成功。当前 Coding Agent 的子 Agent 即可，不要求另启 Claude Code 专属测试。
+同一份验收任务可用于任意具备所需工具能力的 Agent；宿主无法隔离上下文时必须说明能力不足。
 
 **Git 隔离与 worktree**
 
-Local-only 不进入暂存、提交、分支或 PR，Bootstrap 产物不出现在普通 status / diff 中。
+Local-only 的正文与生成产物不进入 Git。isolated 的原 tracked/staged diff 不变；
+indexed 唯一例外是明确授权的条件索引差异，可按 Gateway Flow 提交；不能强行隐藏受跟踪核心文档。
 仅修改仓库本机配置，增加绑定当前 Git directory 的 includeIf 条件区块，引用本地专属排除文件；
 不修改全局配置、项目 .gitignore、共享 info/exclude 或索引，不使用 assume-unchanged / skip-worktree。
 专属排除文件继承原 core.excludesFile 的规则；每次任务由 Agent 运行 verify-install 核对并刷新。
@@ -373,12 +418,14 @@ Local-only 不进入暂存、提交、分支或 PR，Bootstrap 产物不出现�
 
 多个 worktree 可分别安装、卸载，Standard 工作区不会被其他工作区的 Local-only 隐藏。
 同一仓库的安装/卸载串行执行，不提供多进程事务保证。工作区移动后必须核实条件配置，不能继续假定有效。
-Agent 新建 worktree 后在该工作区接入并验证，不能假定未跟踪本地文件自动复制；明确适用的长期授权无需重复确认。
+Agent 新建 worktree 后在该工作区接入并检查；同项目明确且适用的已确认选择可沿用，缺失则必须提问。
+每次新的安装仍须冲突检查和独立验收，不能假定未跟踪文件自动复制。
 
 本地全部新报告、地图、配置与截图写入 .project-bootstrap/，业务文件不得写入该目录。
 map 输出限制在该目录的 docs/ 下。Agent 禁止 git add -f Bootstrap；普通 Git 隔离不是强制提交拦截。
-verify-install 检查状态、薄入口、Git 可见性和地图一致性，不证明语义证据正确或客户端已加载。
-若已有未提交任务，比较安装前后的状态与 diff 保持原任务；不要求清空人的工作区。
+verify-install 检查状态、薄入口、Git 可见性和地图一致性，不证明语义证据正确或独立子 Agent 验收通过。
+若已有未提交任务，比较安装前后 diff，保留原任务。indexed 先建 Task Branch，只提交自己的索引区块；
+不能把人的其他修改一起暂存。若索引文件存在未能分离的用户修改，保留工作区并说明，不提交混合内容。
 
 **Local-only 退场与旧版迁移**
 
@@ -389,10 +436,12 @@ verify-install 检查状态、薄入口、Git 可见性和地图一致性，不�
 3. 获得删除确认后使用 --yes 执行。
 4. 核对原规则、原 Git 排除配置和任务改动保留。
 
-deinit 删除 .project-bootstrap/，只移除薄入口中的本次区块和本 worktree 的条件配置。
+deinit 删除 .project-bootstrap/，只移除本次拥有的入口/条件索引区块和本 worktree 的条件配置。
+已提交索引的移除属于正常 Git 差异，按 Gateway Flow 处理，不重写历史；既有复用索引保留为无本地规则时的空操作。
 入口原本存在或后来追加的其他内容保留；跟踪路径、链接或被破坏的清理区块先报错，不猜测删除。
 Standard 不适用 deinit。旧 .bootstrap/install-state.json 安装不能自动迁移：先备份、确认卸载，再初始化并恢复编辑。
-源码保留旧版 deinit 支持；新版初始化不会接管旧状态。真实任务提交不随卸载回滚。
+源码保留旧版 deinit 支持；v2 本地安装可检查/卸载，重复 init 沿用原 isolated 配置，不补写新索引或自动迁移。
+新的文档模式写入 v3 状态；要更改入口方式，先确认卸载再按两项选择重新安装。真实任务提交不随卸载回滚。
 
 Local-only 只管 Git 可见性；Local-first 只管部署去向。Gateway Flow、Deployment、STS 和语义边界全部继续生效。
 

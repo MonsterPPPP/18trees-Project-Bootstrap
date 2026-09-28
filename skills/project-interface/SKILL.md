@@ -3,8 +3,12 @@ name: project-interface
 description: 在具有 project.manifest.json 的项目中按语义节点修改，执行严格节点边界、Gateway Flow 与项目 Deployment Mode，并判断任务结束时的地图同步。
 ---
 
-先确定角色：被指派为 Review Subagent 时，跳过下方语义修改步骤，直接执行 Gateway Flow 的
-Reviewer 契约，仅使用五类评审包，不自行读取 manifest、代码库或 Coder 会话。
+先确定角色：
+- Review Subagent：仅使用五类评审包，不自行读取代码库或 Coder 会话，直接执行 Gateway Flow Reviewer 契约。
+- Installation Verifier：独立只读沿目标项目真实入口读取原规则、Bootstrap 规范与 skill，核对用户两项选择、Git 边界和技术证据，
+  用合成任务及 Strict Node Boundary 反例判断流程；只返回 PASS / REQUEST_CHANGES，不修改、提交或部署。执行接口规范中的安装验收契约，不跑下方编码流程。
+- 安装 Agent：遵循源仓库 INSTALL.md 的两项选择、写入前冲突检查、安装和独立验收；不冒用以上两个角色替自己签字。
+
 其他角色识别当前安装：Local-only 读取 `.project-bootstrap/AGENTS.md` 与 `.project-bootstrap/interface-spec.md`；
 Standard 读取根 AGENTS.md 与 .bootstrap/interface-spec.md。原项目和嵌套规则继续适用，不静默覆盖。
 Local-only 的文档、manifest、工具位于 .project-bootstrap/；下文 Standard 路径按该配置入口定位。
@@ -15,11 +19,15 @@ metadata 始终相对于目标项目根目录。人类只通过对话框操作�
 未来假设与重复验证 / Agent 调用。Reviewer 在既有 gate 中按 STS 五项（Scope Creep、无需求复杂度、
 违反明确边界、重复验证/Agent 调用、未来假设机制）判断，不优化或修改代码。完整定义见 Engineering Protocol。
 
-Local-only 下产物不得暂存、提交或进入 PR，全部内容放入 .project-bootstrap/；两个根薄入口仅负责读取。
+Local-only 正文及产物只放 .project-bootstrap/；isolated 不改原文档，indexed 唯一可提交内容是用户授权的条件索引。
+索引必须在本地规则不存在时忽略，不触发下载/安装、不要求协作者补齐；原文和未提交内容保持。
 每次任务先执行 `python .project-bootstrap/bootstrap.py verify-install .`，刷新继承排除规则并验证当前安装。
 新建 worktree 后由 Agent 按源仓库 INSTALL.md 接入，验证前不声称已继承；不要求人执行安装命令。
-初始化默认 Local-only + Local-first，显式要求提交规范才使用 Standard；安装源码与依赖环境放在项目外。
-原 AGENTS.md / CLAUDE.md 不覆盖，薄入口只追加自有区块；跟踪入口或规则冲突不能静默处理。
+首次安装必须唤起选择工具，等待人选择 Local-first / Production-direct 及 isolated / indexed；推荐不是确认，不能使用隐式默认。
+无工具则逐项对话询问；重复安装沿用已记录的选择。正文默认 Local-only，Standard 必须另外明确要求，安装源码与依赖放项目外。
+写入前读取实际生效旧规则及引用流程；不兼容就零写入终止，列出来源、冲突及待裁决事项，等用户决定后重查。
+允许索引不允许改写旧规则；indexed 在 Task Branch 只追加带标记区块，不批量改嵌套文件。
+技术检查后必须自动启动 Installation Verifier，PASS 前只能报告文件已落地；父 Agent 自查不能代替独立验收。
 退出请求先预览 deinit，备份必要内容，获确认后加 --yes；保留原规则和实际任务改动。
 旧版安装先备份和确认卸载，不静默迁移。Local-only 改变 Git 可见性，不改变 Gateway / Deployment 授权。
 
@@ -50,7 +58,7 @@ Reviewer 输出使用规范中的机器间判定格式；其他角色继续使�
 
 **Deployment 阶段**
 
-1. 非 Reviewer 角色主动读取当前协作配置入口的 `Deployment Mode` 与 `docs/project/rules.md` 的 Deployment Check；不重复询问模式，不擅自修改。初始化默认 Local-first，只有用户主动选择才可传 `--deployment-mode Production-direct`，不得代用户推断生产长期授权。
+1. 非 Reviewer 角色主动读取当前协作配置入口的 `Deployment Mode` 与 `docs/project/rules.md` 的 Deployment Check；不重复询问模式，不擅自修改。初始化没有隐式部署默认，必须用户主动选择后传 `--deployment-mode Production-direct`，不得代用户推断生产长期授权。
 2. 先完成开发与验证，再按 `Development Complete → Testing / Deployment Check → Deployment Policy → Local / Preview / Production` 推进。Gateway Flow 不变；Production 必须完成 Review / Merge，Production-direct 不能绕过 `require human merge` 或从未合并分支发布。
 3. Local-first：修改与测试完成后启动 Local / Preview，验证并提供可查看入口后停止；只有明确生产请求才继续 Production，且仍须通过 Deployment Check。单次生产请求不修改长期模式。
 4. Production-direct：初始化的一次长期授权替代每次部署前确认；后续任务对待部署版本执行必要测试、成功 Build、全部阻断检查与项目已有部署要求，全部通过即自动部署 Production，不再次询问是否部署。不强制统一 CI/CD，不把缺失、未执行或失败的检查当作通过。

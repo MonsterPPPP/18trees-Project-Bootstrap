@@ -34,6 +34,13 @@ def cli(root, *args):
     return subprocess.run([sys.executable, "-X", "utf8", str(bundle(root) / "bootstrap.py"), *args], capture_output=True)
 
 
+def selected_install(*args, **kwargs):
+    """Legacy regression scenarios supply the two explicit user choices."""
+    kwargs.setdefault("deployment_mode", "Local-first")
+    kwargs.setdefault("agent_doc_mode", "isolated")
+    return app.initialize(*args, **kwargs)
+
+
 class LocalOnlyTests(unittest.TestCase):
     def test_default_lifecycle_preserves_rules_tasks_and_entry_edits(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -52,7 +59,7 @@ class LocalOnlyTests(unittest.TestCase):
             (root / "task.txt").write_text("user work in progress\n")
             before_diff = git(root, "diff")
             with patch("builtins.input", side_effect=AssertionError("no prompts")):
-                app.initialize(root, "合成", interactive=True)
+                selected_install(root, "合成", interactive=True)
             self.assertEqual(git(root, "status", "--porcelain"), b" M task.txt\n")
             self.assertEqual(git(root, "diff"), before_diff)
             self.assertEqual(git(root, "diff", "--cached"), b"")
@@ -96,12 +103,12 @@ class LocalOnlyTests(unittest.TestCase):
             # Standard installation in a synthetic empty branch shares the repository.
             git(standard, "rm", "AGENTS.md", "CLAUDE.md")
             git(standard, "commit", "-m", "test: prepare standard fixture")
-            app.initialize(standard, "合成", bootstrap_mode="Standard")
+            selected_install(standard, "合成", bootstrap_mode="Standard")
             status = git(standard, "status", "--porcelain", "--untracked-files=all")
             config = primary / ".git/config"
             before = config.read_bytes()
-            app.initialize(primary, "合成")
-            app.initialize(linked, "合成")
+            selected_install(primary, "合成")
+            selected_install(linked, "合成")
             self.assertEqual(git(primary, "status", "--porcelain"), b"")
             self.assertEqual(git(linked, "status", "--porcelain"), b"")
             self.assertEqual(git(standard, "status", "--porcelain", "--untracked-files=all"), status)
@@ -125,7 +132,7 @@ class LocalOnlyTests(unittest.TestCase):
             shared_before = shared.read_bytes()
             config_before = (root / ".git/config").read_bytes()
             (root / "a.secret").write_text("synthetic")
-            app.initialize(root, "合成")
+            selected_install(root, "合成")
             self.assertEqual(git(root, "status", "--porcelain"), b"")
             rules.write_bytes(b"*.secret\n*.later\n")
             (root / "b.later").write_text("synthetic")
@@ -145,19 +152,19 @@ class LocalOnlyTests(unittest.TestCase):
             (root / "AGENTS.override.md").write_bytes(b"local original")
             git(root, "add", "AGENTS.override.md")
             with self.assertRaisesRegex(ValueError, "跟踪或暂存"):
-                app.initialize(root, "合成")
+                selected_install(root, "合成")
             self.assertFalse(bundle(root).exists())
             git(root, "reset", "--", "AGENTS.override.md")
             (root / ".gitignore").write_text("!AGENTS.override.md\n")
             with self.assertRaisesRegex(ValueError, "仍对 Git 可见"):
-                app.initialize(root, "合成")
+                selected_install(root, "合成")
             self.assertFalse(bundle(root).exists())
             self.assertEqual((root / "AGENTS.override.md").read_bytes(), b"local original")
             self.assertFalse((root / "CLAUDE.local.md").exists())
             self.assertEqual(config.read_bytes(), before)
             with patch.object(app, "render_diagrams", side_effect=ValueError("render failed")):
                 with self.assertRaisesRegex(ValueError, "render failed"):
-                    app.initialize(root, "合成")
+                    selected_install(root, "合成")
             self.assertFalse(bundle(root).exists())
             self.assertEqual(config.read_bytes(), before)
 
@@ -169,7 +176,7 @@ class LocalOnlyTests(unittest.TestCase):
                 return rendered
             with patch.object(app, "render_diagrams", side_effect=occupy_during_render):
                 with self.assertRaises(FileExistsError):
-                    app.initialize(root, "合成")
+                    selected_install(root, "合成")
             self.assertEqual((bundle(root) / "owner.txt").read_text(), "keep")
             self.assertEqual(config.read_bytes(), before)
 
@@ -177,7 +184,7 @@ class LocalOnlyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp) / "safe"
             repository(root)
-            app.initialize(root, "合成")
+            selected_install(root, "合成")
             result = cli(root, "map", str(bundle(root) / "project.manifest.json"), "--output", str(root / "visible.html"))
             self.assertNotEqual(result.returncode, 0)
             self.assertFalse((root / "visible.html").exists())
@@ -220,7 +227,7 @@ class LocalOnlyTests(unittest.TestCase):
                     return write_bytes(path, data)
                 with self.subTest(parent=parent), patch.object(Path, "write_bytes", fail_partial):
                     with self.assertRaisesRegex(OSError, "partial write"):
-                        app.initialize(root, "合成")
+                        selected_install(root, "合成")
                 self.assertEqual(config.read_bytes(), original_config)
                 self.assertEqual(entry.read_bytes(), original_entry)
                 self.assertEqual(git(root, "status", "--porcelain"), original_status)
@@ -239,7 +246,7 @@ class LocalOnlyTests(unittest.TestCase):
             config = (root / ".git/config").read_bytes()
             status = git(root, "status", "--porcelain")
             with self.assertRaisesRegex(ValueError, "入口已有 Bootstrap 区块"):
-                app.initialize(root, "合成")
+                selected_install(root, "合成")
             self.assertEqual(entry.read_bytes(), before)
             self.assertEqual((root / ".git/config").read_bytes(), config)
             self.assertEqual(git(root, "status", "--porcelain"), status)
@@ -249,7 +256,7 @@ class LocalOnlyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp) / "verify"
             repository(root)
-            app.initialize(root, "合成")
+            selected_install(root, "合成")
             entry = root / "AGENTS.override.md"
             original = entry.read_bytes()
             entry.write_bytes(b"changed")
@@ -278,7 +285,7 @@ class LocalOnlyTests(unittest.TestCase):
             before = exclude.read_bytes()
             exclude.write_bytes(before + app.EXCLUDE_BLOCK)
             with self.assertRaisesRegex(ValueError, "旧版 Local-only"):
-                app.initialize(root, "合成")
+                selected_install(root, "合成")
             self.assertTrue(home.exists())
             app.deinitialize(root, yes=True)
             self.assertFalse(home.exists())

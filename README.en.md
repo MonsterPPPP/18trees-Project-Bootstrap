@@ -14,7 +14,7 @@ A **personally customized Bootstrap**: it integrates a four-layer semantic map, 
 
 For Coding Agents that support skills (Codex / Claude Code). The human describes only the goal; the Agent handles installation, understanding, modification, testing, independent review, and queue-based merging.
 
-> A personal Bootstrap that integrates a four-layer semantic map, a review-gated sub-agent workflow, and four proven upstream skills into one initialization. Installed non-invasively into existing codebases.
+> A personal Bootstrap that integrates a four-layer semantic map, a review-gated sub-agent workflow, and four proven upstream skills into one initialization. Offers a choice of local-only entry points or optional tracked indexes in existing agent documents.
 
 ---
 
@@ -186,13 +186,18 @@ All of these conclusions are written into the target project's `AGENTS.md` and p
 
 So this project **deliberately adds no competing coding spec**: it defines no code style, no test spec, no directory conventions. When good specs already exist, use the ones that exist; this project's job is to make them work together.
 
-### 4. Accompanying feature: non-invasive, reversible installation
+### 4. Accompanying feature: optional integration, reversible installation
 
-The previous three are active capabilities; this one is the precondition that lets them **cost you nothing**.
+During initialization, explicitly choose whether Bootstrap may append rule indexes to existing agent documents.
 
-Tracked / staged diff is unchanged before and after installation; a plain `git status` shows no added Bootstrap entries. **Git conditional configuration** confines the effect to the workspace where it was installed — **it does not change the shared `info/exclude`, the global Git config, or `.gitignore`**. To commit the specs along with the project, explicitly choose Standard mode.
+If you decline, existing core documents remain unchanged and local entry points are used.
+If you allow it, only marked, conditional indexes may enter Git; rules, configuration, maps and reports stay local.
+The index says: **if the local rules do not exist, ignore this block**. It does not install anything for collaborators,
+ask them to obtain missing files, or pass your deployment authorization to them.
 
-And it is **reversible**: `deinit` restores the original exclude bytes, restores the thin entry point's original content, and keeps your task changes. For existing files, the thin entry point only **appends its own marked block**; it does not modify tracked `AGENTS.md` / `CLAUDE.md`.
+Git conditional configuration isolates each worktree without changing shared `info/exclude`, global Git config or `.gitignore`.
+`deinit` removes only blocks owned by this installation and local artifacts, preserving original rules and task changes.
+Removing a committed index creates an ordinary Git diff. Standard remains a separate, explicit full-project distribution option.
 
 ### What It Doesn't Do (by design)
 
@@ -217,9 +222,18 @@ The complete boundaries are recorded item by item in [docs/verification.md](docs
 
 Send this in the target project's Coding Agent chat:
 
-> Using this repository, initialize Project Bootstrap in the current project: `https://github.com/MonsterPPPP/18trees-Project-Bootstrap`. Make it local-only, do not bring Bootstrap files into Git; preserve the project's existing rules; when done, tell me how to use it.
+> Using this repository, initialize Project Bootstrap in the current project: `https://github.com/MonsterPPPP/18trees-Project-Bootstrap`. Ask me to choose the delivery policy and whether rule indexes may be added. Check existing rules for conflicts, then tell me how to use it after independent acceptance passes.
 
-The Agent will read [INSTALL.md](INSTALL.md) and run the whole flow — prepare dependencies, understand the project, generate the map, validate the installation.
+The Agent reads [INSTALL.md](INSTALL.md), opens its selection tool, and waits for your two explicit choices:
+
+| Required choice | Options |
+|---|---|
+| Delivery policy | Sync to the repository without automatic production deployment; or automatically deploy after all checks pass (ongoing authorization) |
+| Document integration | Allow conditional, committable indexes in existing agent documents; or keep existing documents unchanged and use local entry points |
+
+There are no silently applied defaults. Incompatible existing rules stop installation before any target writes;
+the Agent lists conflicts for your decision. After installation and technical checks, an independent sub-agent must
+verify rule loading and workflow understanding. Only PASS completes initialization; initialization itself never deploys production.
 
 ### Prerequisites
 
@@ -229,7 +243,7 @@ Python 3.12+, Node.js 22+, Git, and [archify](https://github.com/tt-a1i/archify)
 
 **It executes commands on your machine**: cloning source, creating a venv, running `bootstrap.py init`, modifying the workspace's local Git configuration, generating map files. Web-based ChatGPT / Gemini / DeepSeek / Kimi / Doubao have no tool capability and cannot do any of this.
 
-What you need is a **Coding Agent that can execute shell commands and read/write files** (Codex / Claude Code, or equivalent).
+What you need is a **Coding Agent that can execute shell commands, read/write files, and launch a sub-agent with an independent context** (Codex / Claude Code, or equivalent).
 
 To judge whether a project can be used by pasting, look at whether it **needs to execute commands or access the filesystem**:
 
@@ -254,7 +268,7 @@ After installation, continue in the same chat:
 
 See the [human manual](MANUAL.md) for details.
 
-**Default is Local-only + Local-first**: the Bootstrap stays on this machine; production release requires explicit authorization.
+**Content defaults to Local-only; both configuration choices are mandatory.** You decide automatic production deployment and permission to add tracked indexes during initialization.
 
 ---
 

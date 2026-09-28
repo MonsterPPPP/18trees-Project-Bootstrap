@@ -21,6 +21,7 @@ except ImportError:
 BASE = Path(__file__).resolve().parent
 DEPLOYMENT_MODES = ("Local-first", "Production-direct")
 BOOTSTRAP_MODES = ("Standard", "Local-only")
+AGENT_DOC_MODES = ("isolated", "indexed")
 LOCAL_SCOPES = ("AGENTS.md", "CLAUDE.md", "project.manifest.json", ".bootstrap",
                 "docs/project", ".agents/skills/project-interface", ".claude/skills/project-interface")
 LOCAL_DIRS = LOCAL_SCOPES[3:]
@@ -377,6 +378,84 @@ ENTRY_BLOCKS = {
 }
 
 
+CORE_DOCS = ("AGENTS.md", "CLAUDE.md", ".claude/CLAUDE.md")
+INDEX_BLOCK = ("\n<!-- BEGIN Project Bootstrap Index -->\n"
+    "仅当项目根目录下 .project-bootstrap/AGENTS.md 存在时，读取该文件及其指向的规则与 skill，保留原项目规则。\n"
+    "若文件不存在，忽略本区块并继续原项目流程；不要因此安装、下载或创建 Bootstrap，也不要要求协作者补齐文件。\n"
+    "本索引不授予部署或修改权限；规则冲突应停止并交由用户决策。\n"
+    "<!-- END Project Bootstrap Index -->\n").encode("utf-8")
+
+
+def managed_block(data, expected):
+    # A tracked index can acquire CRLF after checkout; remove its actual bytes only.
+    candidates = (expected, expected.replace(b"\n", b"\r\n"))
+    if (sum(data.count(part) for part in candidates) != 1
+            or data.count(b"<!-- BEGIN Project Bootstrap") != 1
+            or data.count(b"<!-- END Project Bootstrap") != 1):
+        raise ValueError("入口区块缺失、重复或被修改；请先恢复区块")
+    return next(part for part in candidates if part in data)
+
+
+def local_state(root):
+    state = read_json(check_target(root, LOCAL_HOME + "/install-state.json"))
+    entries = state.get("entry_existed", {})
+    version = state.get("version")
+    if (state.get("bootstrap_mode") != "Local-only" or version not in (2, 3)
+            or not isinstance(entries, dict) or not entries
+            or not all(isinstance(value, bool) for value in entries.values())):
+        raise ValueError("本地安装记录无效；未修改文件")
+    mode = state.get("agent_doc_mode", "isolated") if version == 3 else "isolated"
+    indexed = state.get("indexed_entries", []) if version == 3 else []
+    reused = state.get("reused_entries", []) if version == 3 else []
+    if (mode not in AGENT_DOC_MODES or not isinstance(indexed, list) or not isinstance(reused, list)
+            or any(not isinstance(name, str) for name in indexed + reused)
+            or len(indexed) != len(set(indexed)) or len(reused) != len(set(reused))
+            or not set(indexed) <= set(CORE_DOCS) or not set(indexed) <= set(entries)
+            or not set(reused) <= set(indexed)
+            or not set(entries) <= set(ENTRY_NAMES + CORE_DOCS)
+            or set(entries) - set(indexed) - set(ENTRY_NAMES)
+            or (mode == "isolated" and (indexed or set(entries) != set(ENTRY_NAMES)))):
+        raise ValueError("本地入口记录无效；未修改文件")
+    state.update(agent_doc_mode=mode, indexed_entries=indexed, reused_entries=reused)
+    return state
+
+
+def entry_blocks(state):
+    return {name: INDEX_BLOCK if name in state["indexed_entries"] else ENTRY_BLOCKS[name]
+            for name in state["entry_existed"]}
+
+
+def excluded_paths(state):
+    return (LOCAL_HOME, *(name for name in state["entry_existed"] if name not in state["indexed_entries"]))
+
+
+def plan_entries(root, mode):
+    for name in (*CORE_DOCS, *ENTRY_NAMES):
+        check_target(root, name)
+    names, indexed = [], []
+    if mode == "isolated":
+        names.extend(ENTRY_NAMES)
+    else:
+        for core, fallback in (("AGENTS.md", "AGENTS.override.md"), ("CLAUDE.md", "CLAUDE.local.md")):
+            candidates = (core, ".claude/CLAUDE.md") if core == "CLAUDE.md" else (core,)
+            found = [name for name in candidates if (root / name).exists()]
+            if found:
+                if core == "AGENTS.md" and (root / fallback).exists():
+                    raise ValueError("AGENTS.override.md 会遮蔽原 AGENTS.md；请先由用户确定生效入口，未安装")
+                names.extend(found)
+                indexed.extend(found)
+            else:
+                names.append(fallback)
+    return {"version": 3, "bootstrap_mode": "Local-only", "agent_doc_mode": mode,
+            "entry_existed": {name: (root / name).exists() for name in names},
+            "indexed_entries": indexed, "reused_entries": []}
+
+
+def require_install_choices(deployment_mode, agent_doc_mode):
+    if deployment_mode not in DEPLOYMENT_MODES or agent_doc_mode not in AGENT_DOC_MODES:
+        raise ValueError("首次安装必须由用户明确选择 --deployment-mode 和 --agent-doc-mode；请 Agent 唤起选择工具，未写入文件")
+
+
 def git_output(root, *args, optional=False):
     result = subprocess.run(["git", "-C", str(root), *args], capture_output=True, encoding="utf-8")
     if result.returncode and not (optional and result.returncode == 1):
@@ -408,10 +487,10 @@ def local_git(root):
     return config, block
 
 
-def check_local_paths(root):
-    if git_output(root, "ls-files", "--", *LOCAL_PATHS):
+def check_local_paths(root, state):
+    if git_output(root, "ls-files", "--", *excluded_paths(state)):
         raise ValueError("Local-only 路径已被跟踪或暂存；不能覆盖规则或改动索引")
-    for relative in LOCAL_PATHS:
+    for relative in (LOCAL_HOME, *state["entry_existed"]):
         path = root / relative
         check_target(root, relative + "/install-state.json" if relative == LOCAL_HOME else relative)
         if path.is_dir():
@@ -445,9 +524,9 @@ def inherited_excludes(root):
     return source.read_bytes() if source.is_file() else b""
 
 
-def local_exclude_bytes(root):
+def local_exclude_bytes(root, state):
     return inherited_excludes(root) + b"\n# Project Bootstrap local files\n" + b"\n".join(
-        ("/" + p + ("/" if p == LOCAL_HOME else "")).encode("utf-8") for p in LOCAL_PATHS) + b"\n"
+        ("/" + p + ("/" if p == LOCAL_HOME else "")).encode("utf-8") for p in excluded_paths(state)) + b"\n"
 
 
 def local_sources():
@@ -480,21 +559,19 @@ def local_text(text):
 
 def verify_install(target):
     root = Path(os.path.abspath(target))
-    check_local_paths(root)
+    state = local_state(root)
+    check_local_paths(root, state)
     home = root / LOCAL_HOME
-    state = read_json(home / "install-state.json")
-    if state.get("version") != 2 or state.get("bootstrap_mode") != "Local-only":
-        raise ValueError("不支持的安装记录；不猜测修复或卸载")
-    if set(state.get("entry_existed", {})) != set(ENTRY_NAMES) or not all(
-            isinstance(v, bool) for v in state["entry_existed"].values()):
-        raise ValueError("入口安装记录无效；未删除文件")
+    if "AGENTS.md" in state["indexed_entries"] and (root / "AGENTS.override.md").exists():
+        raise ValueError("AGENTS.override.md 会遮蔽 indexed 入口；请由用户确定生效入口")
     config, block = local_git(root)
     if config.read_bytes().count(block) != 1:
         raise ValueError("本地 Git 配置区块缺失或重复；请恢复原安装位置或配置")
-    for name, entry in ENTRY_BLOCKS.items():
+    for name, entry in entry_blocks(state).items():
         path = root / name
-        if not path.is_file() or path.read_bytes().count(entry) != 1:
-            raise ValueError(f"本地入口区块缺失或被修改：{name}；请恢复区块")
+        if not path.is_file():
+            raise ValueError(f"本地入口缺失：{name}")
+        managed_block(path.read_bytes(), entry)
     for name in (*local_sources(), "project.manifest.json", "docs/map.html", "git.config", "git.exclude"):
         if not (home / name).is_file():
             raise ValueError(f"本地安装缺少 {name}；请备份后重新安装")
@@ -502,19 +579,21 @@ def verify_install(target):
     if not re.search(r"^Bootstrap Mode: Local-only$", agents, re.M) or not re.search(
             r"^Deployment Mode: (Local-first|Production-direct)$", agents, re.M):
         raise ValueError("本地模式配置无效；请恢复 AGENTS.md 中的模式")
+    if state["version"] == 3 and f'Agent Document Mode: {state["agent_doc_mode"]}\n' not in agents:
+        raise ValueError("文档写入方式与安装记录不同；重复 init 不用于切换方式")
     expected_config = local_config(root)
     if (home / "git.config").read_bytes() != expected_config:
         raise ValueError("本地 Git 排除配置被修改；请恢复安装配置")
     exclude = home / "git.exclude"
     before = exclude.read_bytes()
-    after = local_exclude_bytes(root)
+    after = local_exclude_bytes(root, state)
     try:
         if before != after:
             exclude.write_bytes(after)
         effective = git_output(root, "config", "--path", "--get", "core.excludesFile").strip()
         if Path(effective).resolve() != exclude.resolve():
             raise ValueError("其他 Git 配置覆盖了本地排除；请先解决配置冲突")
-        visible = git_output(root, "ls-files", "--others", "--exclude-standard", "--", *LOCAL_PATHS)
+        visible = git_output(root, "ls-files", "--others", "--exclude-standard", "--", *excluded_paths(state))
         if visible:
             raise ValueError("Bootstrap 仍对 Git 可见：项目 ignore 规则覆盖了本地排除")
         validate_map(validate_manifest(read_json(home / "project.manifest.json")), home / "docs/map.html")
@@ -544,39 +623,51 @@ def atomic_bytes(path, data):
         temporary.unlink(missing_ok=True)
 
 
-def initialize_local(root, name, explicit, deployment_mode):
+def initialize_local(root, name, explicit, deployment_mode, agent_doc_mode):
     config, block = local_git(root)
-    check_local_paths(root)
     home = root / LOCAL_HOME
     if home.exists():
         if not (home / "install-state.json").is_file():
             raise ValueError("初始化冲突：.project-bootstrap 已存在但没有安装记录")
-        verify_install(root)
+        state = local_state(root)
+        if agent_doc_mode is not None and agent_doc_mode != state["agent_doc_mode"]:
+            raise ValueError("初始化冲突：不能通过重复 init 切换文档写入方式")
         if deployment_mode and f"Deployment Mode: {deployment_mode}\n" not in (home / "AGENTS.md").read_text(encoding="utf-8"):
             raise ValueError("初始化冲突：不能通过 init 改变部署模式")
+        verify_install(root)
         return 0
-    mode = deployment_mode or "Local-first"
-    if mode not in DEPLOYMENT_MODES:
-        raise ValueError("无效 Deployment Mode")
-    entries = {name: (root / name).read_bytes() if (root / name).exists() else None for name in ENTRY_NAMES}
-    if any(value is not None and any(marker in value for marker in (
-            b"<!-- BEGIN Project Bootstrap -->", b"<!-- END Project Bootstrap -->")) for value in entries.values()):
-        raise ValueError("入口已有 Bootstrap 区块但安装记录缺失；请先核实旧安装")
+    require_install_choices(deployment_mode, agent_doc_mode)
+    mode = deployment_mode
+    state = plan_entries(root, agent_doc_mode)
+    check_local_paths(root, state)
+    blocks = entry_blocks(state)
+    entries = {name: (root / name).read_bytes() if (root / name).exists() else None for name in blocks}
+    for entry, content in entries.items():
+        if content is None:
+            continue
+        try:
+            content.decode("utf-8-sig")
+        except UnicodeDecodeError as error:
+            raise ValueError(f"入口不是 UTF-8，不能安全追加索引：{entry}；未修改原文，请用户决定编码处理") from error
+        if entry in state["indexed_entries"] and b"<!-- BEGIN Project Bootstrap Index -->" in content:
+            managed_block(content, INDEX_BLOCK)
+            state["reused_entries"].append(entry)
+        elif b"<!-- BEGIN Project Bootstrap" in content or b"<!-- END Project Bootstrap" in content:
+            raise ValueError("入口已有 Bootstrap 区块但安装记录缺失或不完整；请先核实旧安装")
     before_config = config.read_bytes()
     if block in before_config:
         raise ValueError("Git 配置已有本安装区块；请先核实旧安装")
     files = {name: source.read_bytes() for name, source in local_sources().items()}
     for filename in ("AGENTS.md", "docs/overview.md", "docs/rules.md", "skills/project-interface/SKILL.md"):
         files[filename] = local_text(files[filename].decode("utf-8")).replace("@@BOOTSTRAP_MODE@@", "Local-only").replace(
-            "@@DEPLOYMENT_MODE@@", mode).encode("utf-8")
+            "@@DEPLOYMENT_MODE@@", mode).replace("@@AGENT_DOC_MODE@@", agent_doc_mode).encode("utf-8")
     manifest = validate_manifest(starter(name))
     manifest["$schema"] = "schema/semantic-project.schema.json"
     files["project.manifest.json"] = (encode(manifest) + "\n").encode("utf-8")
     files["docs/map.html"] = map_document(manifest, render_diagrams(manifest, explicit)).encode("utf-8")
     files["git.config"] = local_config(root)
-    files["git.exclude"] = local_exclude_bytes(root)
-    files["install-state.json"] = encode({"version": 2, "bootstrap_mode": "Local-only",
-        "entry_existed": {name: value is not None for name, value in entries.items()}}).encode("utf-8")
+    files["git.exclude"] = local_exclude_bytes(root, state)
+    files["install-state.json"] = encode(state).encode("utf-8")
     changed_entries = []
     home_created = False
     try:
@@ -593,15 +684,17 @@ def initialize_local(root, name, explicit, deployment_mode):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)
         for entry, content in entries.items():
+            if entry in state["reused_entries"]:
+                continue
             path = root / entry
             if (path.read_bytes() if path.exists() else None) != content:
                 raise ValueError(f"入口在安装期间被修改：{entry}")
-            atomic_bytes(path, (content or b"") + ENTRY_BLOCKS[entry])
+            atomic_bytes(path, (content or b"") + blocks[entry])
             changed_entries.append(entry)
         verify_install(root)
     except Exception:
         for entry in changed_entries:
-            content = (root / entry).read_bytes().replace(ENTRY_BLOCKS[entry], b"", 1)
+            content = (root / entry).read_bytes().replace(blocks[entry], b"", 1)
             if content or entries[entry] is not None:
                 atomic_bytes(root / entry, content)
             else:
@@ -611,29 +704,26 @@ def initialize_local(root, name, explicit, deployment_mode):
         if home_created:
             shutil.rmtree(home)
         raise
-    return len(files) + 2 + len(ENTRY_NAMES)
+    return len(files) + 2 + len(changed_entries)
 
 
 def deinitialize_local(target, yes=False):
     root = Path(os.path.abspath(target))
-    # Cleanup must work even when a changed ignore rule makes verify-install fail.
-    check_local_paths(root)
+    # Cleanup must work even when changed ignore rules make verification fail.
+    state = local_state(root)
+    check_local_paths(root, state)
     home = root / LOCAL_HOME
-    state = read_json(home / "install-state.json")
-    entries = state.get("entry_existed", {})
-    if (state.get("version") != 2 or state.get("bootstrap_mode") != "Local-only"
-            or set(entries) != set(ENTRY_NAMES) or not all(isinstance(v, bool) for v in entries.values())):
-        raise ValueError("安装记录无效；未删除文件")
+    entries = state["entry_existed"]
     config, block = local_git(root)
     if config.read_bytes().count(block) != 1:
         raise ValueError("Git 本地区块缺失或重复；请恢复后清理")
     restored = {}
-    for entry in ENTRY_NAMES:
+    for entry, expected in entry_blocks(state).items():
         data = (root / entry).read_bytes()
-        if data.count(ENTRY_BLOCKS[entry]) != 1:
-            raise ValueError(f"入口区块缺失或被修改：{entry}；请先恢复区块")
-        restored[entry] = data.replace(ENTRY_BLOCKS[entry], b"", 1)
-    print("将清理 .project-bootstrap/ 全部本地编辑与生成物、两个入口中的 Bootstrap 区块及本 worktree 排除配置；保留原规则和任务改动")
+        actual = managed_block(data, expected)
+        if entry not in state["reused_entries"]:
+            restored[entry] = data.replace(actual, b"", 1)
+    print("将清理 .project-bootstrap/ 全部本地编辑与生成物、本次拥有的入口索引区块及本 worktree 排除配置；保留原规则和任务改动")
     if not yes:
         print("当前仅预览；先备份需要保留的内容，获确认后加 --yes")
         return 0
@@ -654,7 +744,7 @@ def deinitialize(target, yes=False):
     return deinitialize_legacy(target, yes)
 
 
-def initialize(target, name, explicit=None, deployment_mode=None, interactive=False, bootstrap_mode=None):
+def initialize(target, name, explicit=None, deployment_mode=None, interactive=False, bootstrap_mode=None, agent_doc_mode=None):
     if not (BASE / "templates/AGENTS.md").is_file():
         raise ValueError("init 需要完整 Bootstrap 源仓库；由 Agent 从源仓库执行")
     root = Path(os.path.abspath(target))
@@ -668,17 +758,19 @@ def initialize(target, name, explicit=None, deployment_mode=None, interactive=Fa
     if bootstrap_mode not in BOOTSTRAP_MODES:
         raise ValueError("无效 Bootstrap Mode")
     if bootstrap_mode == "Local-only":
-        return initialize_local(root, name, explicit, deployment_mode)
+        return initialize_local(root, name, explicit, deployment_mode, agent_doc_mode)
     if (root / LOCAL_HOME).exists():
         raise ValueError("初始化冲突：已有 Local-only；不能用 init 切换模式")
     saved = re.search(r"^Deployment Mode: (Local-first|Production-direct)$", saved_agents, re.M)
-    deployment_mode = deployment_mode or (saved[1] if saved else "Local-first")
-    if deployment_mode not in DEPLOYMENT_MODES:
-        raise ValueError("无效 Deployment Mode")
+    saved_doc = re.search(r"^Agent Document Mode: (isolated|indexed)$", saved_agents, re.M)
+    if (root / ".bootstrap/bootstrap.py").is_file() and saved and saved_doc:
+        deployment_mode = deployment_mode or saved[1]
+        agent_doc_mode = agent_doc_mode or saved_doc[1]
+    require_install_choices(deployment_mode, agent_doc_mode)
     manifest = validate_manifest(starter(name))
     files = {relative: source.read_bytes() for relative, source in install_files().items()}
     files["AGENTS.md"] = files["AGENTS.md"].replace(b"@@DEPLOYMENT_MODE@@", deployment_mode.encode("utf-8"))
-    files["AGENTS.md"] = files["AGENTS.md"].replace(b"@@BOOTSTRAP_MODE@@", b"Standard")
+    files["AGENTS.md"] = files["AGENTS.md"].replace(b"@@BOOTSTRAP_MODE@@", b"Standard").replace(b"@@AGENT_DOC_MODE@@", agent_doc_mode.encode("utf-8"))
     for relative, data in files.items():
         path = check_target(root, relative)
         if path.exists() and path.read_bytes() != data:
@@ -720,7 +812,9 @@ def main():
     init.add_argument("--name", default="新项目")
     init.add_argument("--archify", help="外部 archify skill 目录或 bin/archify.mjs 路径")
     init.add_argument("--deployment-mode", choices=DEPLOYMENT_MODES,
-                      help="部署模式：默认 Local-first；显式选择 Production-direct 即给予检查通过后自动部署生产的长期授权")
+                      help="首次安装必选：Local-first 只同步仓库；Production-direct 检查通过后长期自动部署生产")
+    init.add_argument("--agent-doc-mode", choices=AGENT_DOC_MODES,
+                      help="首次安装必选：isolated 不改原文档；indexed 允许在原 Agent 文档添加可提交的条件索引")
     init.add_argument("--bootstrap-mode", choices=BOOTSTRAP_MODES,
                       help="默认 Local-only（仅本地）；Standard 需用户明确选择")
     deinit = commands.add_parser("deinit", help="预览 Local-only 清理；加 --yes 删除本地 Bootstrap 与 exclude 区块")
@@ -739,11 +833,11 @@ def main():
     try:
         if args.command == "init":
             count = initialize(args.target, args.name, args.archify, args.deployment_mode,
-                               interactive=sys.stdin.isatty(), bootstrap_mode=args.bootstrap_mode)
-            print(f"初始化通过：新增 {count} 个文件。由 Agent 读取协作规则，返回项目使用说明和地图入口")
+                               interactive=sys.stdin.isatty(), bootstrap_mode=args.bootstrap_mode, agent_doc_mode=args.agent_doc_mode)
+            print(f"文件已落地：新增/接入 {count} 项。尚需安装 Agent 完成技术检查并启动独立子 Agent 验收；未 PASS 不得报告初始化完成")
         elif args.command == "verify-install":
             verify_install(args.target)
-            print("本地安装、Git 隔离与地图一致性通过；客户端新会话加载需另行核实")
+            print("技术检查通过（安装、Git 隔离、地图一致性）；不代表独立子 Agent 验收通过")
         elif args.command == "deinit":
             deinitialize(args.target, args.yes)
         else:
