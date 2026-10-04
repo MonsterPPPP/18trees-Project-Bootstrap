@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 
 import bootstrap as app
-from test_local_only import git, repository, bundle
+from test_local_only import git, repository, bundle, isolated_agent_env
 
 
 class InstallDecisionTests(unittest.TestCase):
@@ -25,7 +25,8 @@ class InstallDecisionTests(unittest.TestCase):
             repository(root)
             before = {name: (root / name).read_bytes() for name in ("AGENTS.md", "CLAUDE.md")}
             result = subprocess.run([sys.executable, "-X", "utf8", str(app.BASE / "bootstrap.py"), "init", str(root),
-                                     "--name", "合成项目"], capture_output=True, text=True, encoding="utf-8")
+                                     "--name", "合成项目"], capture_output=True, text=True, encoding="utf-8",
+                                    env=isolated_agent_env(temp))
             self.assertEqual(result.returncode, 0, result.stderr)
             state = app.verify_install(root)
             self.assertEqual(state["agent_doc_mode"], "isolated")
@@ -195,7 +196,8 @@ class InstallDecisionTests(unittest.TestCase):
             root = Path(temp) / "pending"
             repository(root)
             result = subprocess.run([sys.executable, "-X", "utf8", str(app.BASE / "bootstrap.py"), "init", str(root),
-                "--deployment-mode", "Local-first", "--agent-doc-mode", "isolated"], capture_output=True)
+                "--deployment-mode", "Local-first", "--agent-doc-mode", "isolated"], capture_output=True,
+                env=isolated_agent_env(temp))
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("未 PASS 不得报告初始化完成", result.stdout.decode("utf-8"))
             result = subprocess.run([sys.executable, "-X", "utf8", str(bundle(root) / "bootstrap.py"), "verify-install", str(root)], capture_output=True)

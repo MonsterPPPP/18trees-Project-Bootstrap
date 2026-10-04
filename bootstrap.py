@@ -268,6 +268,9 @@ def install_files():
         ".agents/skills/project-interface/SKILL.md": BASE / "skills/project-interface/SKILL.md",
         ".claude/skills/project-interface/SKILL.md": BASE / "skills/project-interface/SKILL.md",
         ".bootstrap/bootstrap.py": BASE / "bootstrap.py",
+        ".bootstrap/lowcost_agent.py": BASE / "lowcost_agent.py",
+        ".bootstrap/agent_probe.mjs": BASE / "agent_probe.mjs",
+        ".bootstrap/low-cost-agent.md": BASE / "docs/low-cost-agent.md",
         ".bootstrap/requirements.txt": BASE / "requirements.txt",
         ".bootstrap/interface-spec.md": BASE / "docs/interface-spec.md",
         ".bootstrap/schema/semantic-project.schema.json": BASE / "schema/semantic-project.schema.json",
@@ -541,6 +544,9 @@ def local_sources():
         "docs/usage.md": BASE / "MANUAL.md",
         "skills/project-interface/SKILL.md": BASE / "skills/project-interface/SKILL.md",
         "bootstrap.py": BASE / "bootstrap.py",
+        "lowcost_agent.py": BASE / "lowcost_agent.py",
+        "agent_probe.mjs": BASE / "agent_probe.mjs",
+        "low-cost-agent.md": BASE / "docs/low-cost-agent.md",
         "requirements.txt": BASE / "requirements.txt",
         "interface-spec.md": BASE / "docs/interface-spec.md",
         "schema/semantic-project.schema.json": BASE / "schema/semantic-project.schema.json",
@@ -576,7 +582,11 @@ def verify_install(target):
         if not path.is_file():
             raise ValueError(f"本地入口缺失：{name}")
         managed_block(path.read_bytes(), entry)
-    for name in (*local_sources(), "project.manifest.json", "docs/map.html", "git.config", "git.exclude"):
+    sources = local_sources()
+    if not state.get("low_cost_agent_bundle"):
+        sources = {name: path for name, path in sources.items()
+                   if name not in ("lowcost_agent.py", "agent_probe.mjs", "low-cost-agent.md")}
+    for name in (*sources, "project.manifest.json", "docs/map.html", "git.config", "git.exclude"):
         if not (home / name).is_file():
             raise ValueError(f"本地安装缺少 {name}；请备份后重新安装")
     agents = (home / "AGENTS.md").read_text(encoding="utf-8")
@@ -642,6 +652,7 @@ def initialize_local(root, name, explicit, deployment_mode, agent_doc_mode):
         return 0
     mode, agent_doc_mode = resolve_install_choices(deployment_mode, agent_doc_mode)
     state = plan_entries(root, agent_doc_mode)
+    state["low_cost_agent_bundle"] = True
     check_local_paths(root, state)
     blocks = entry_blocks(state)
     entries = {name: (root / name).read_bytes() if (root / name).exists() else None for name in blocks}
@@ -820,6 +831,18 @@ def main():
                       help="默认 isolated，不改原文档；indexed 需用户明确授权后才追加可提交的条件索引")
     init.add_argument("--bootstrap-mode", choices=BOOTSTRAP_MODES,
                       help="默认 Local-only（仅本地）；Standard 需用户明确选择")
+    init.add_argument("--low-cost-agent", choices=("enable", "skip"),
+                      help="宿主首次询问；记录机器选择，未选择仅提示待选择，常规初始化继续")
+    agent = commands.add_parser("agent", help="可选 acpx → 本机 DSH；只读委派与机器配置复用")
+    agent_commands = agent.add_subparsers(dest="agent_command", required=True)
+    setup = agent_commands.add_parser("setup", help="续跑配置/握手；首次或状态变化后小额验证")
+    setup.add_argument("--cwd", type=Path, default=Path.cwd())
+    setup.add_argument("--choice", choices=("enable", "skip"))
+    setup.add_argument("--install", action="store_true", help="启用后允许补装缺失 acpx，不升级 DSH")
+    run = agent_commands.add_parser("run", help="提交最小任务包，输出结果与完成状态；无默认重试")
+    run.add_argument("--cwd", type=Path, default=Path.cwd())
+    run.add_argument("--file", required=True, help="UTF-8 任务包；- 从 stdin 读取")
+    run.add_argument("--session", help="仅相关连续任务使用同一命名会话")
     deinit = commands.add_parser("deinit", help="预览 Local-only 清理；加 --yes 删除本地 Bootstrap 与 exclude 区块")
     deinit.add_argument("target", type=Path)
     deinit.add_argument("--yes", action="store_true", help="确认删除全部本地 Bootstrap 产物，含后续编辑")
@@ -838,6 +861,22 @@ def main():
             count = initialize(args.target, args.name, args.archify, args.deployment_mode,
                                interactive=sys.stdin.isatty(), bootstrap_mode=args.bootstrap_mode, agent_doc_mode=args.agent_doc_mode)
             print(f"文件已落地：新增/接入 {count} 项。尚需安装 Agent 完成技术检查并启动独立子 Agent 验收；未 PASS 不得报告初始化完成")
+            from lowcost_agent import configure
+            try:
+                report = configure(args.target, args.low_cost_agent, install=True)
+            except (OSError, ValueError, subprocess.TimeoutExpired):
+                report = {"ok": False, "status": "unavailable", "error": "OPTIONAL_AGENT_SETUP_FAILED",
+                          "next": "主 Agent 继续常规 Bootstrap；修复本机配置访问后续跑 agent setup"}
+            print("可选低成本 Agent：" + json.dumps(report, ensure_ascii=False))
+        elif args.command == "agent":
+            from lowcost_agent import configure, run as delegate
+            if args.agent_command == "setup":
+                report = configure(args.cwd, args.choice, args.install)
+            else:
+                text = sys.stdin.read() if args.file == "-" else Path(args.file).read_text(encoding="utf-8-sig")
+                report = delegate(args.cwd, text, args.session)
+            print(json.dumps(report, ensure_ascii=False))
+            return 0 if report.get("ok") else 1
         elif args.command == "verify-install":
             verify_install(args.target)
             print("技术检查通过（安装、Git 隔离、地图一致性）；不代表独立子 Agent 验收通过")

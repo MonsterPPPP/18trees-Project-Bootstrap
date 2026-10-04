@@ -30,8 +30,15 @@ def bundle(root):
     return root / app.LOCAL_HOME
 
 
+def isolated_agent_env(root):
+    # CLI regression tests must not consume credentials or change machine choices.
+    home = str(Path(root) / "synthetic-machine-home")
+    return dict(os.environ, HOME=home, USERPROFILE=home)
+
+
 def cli(root, *args):
-    return subprocess.run([sys.executable, "-X", "utf8", str(bundle(root) / "bootstrap.py"), *args], capture_output=True)
+    return subprocess.run([sys.executable, "-X", "utf8", str(bundle(root) / "bootstrap.py"), *args],
+                          capture_output=True, env=isolated_agent_env(root.parent))
 
 
 def selected_install(*args, **kwargs):
