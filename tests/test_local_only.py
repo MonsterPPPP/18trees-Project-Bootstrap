@@ -38,6 +38,8 @@ def selected_install(*args, **kwargs):
     """Regression scenarios can override the safe repository-only defaults."""
     kwargs.setdefault("deployment_mode", "Local-first")
     kwargs.setdefault("agent_doc_mode", "isolated")
+    kwargs.setdefault("git_remote_setup", "local")
+    kwargs.setdefault("git_push_mode", "Local-only")
     return app.initialize(*args, **kwargs)
 
 

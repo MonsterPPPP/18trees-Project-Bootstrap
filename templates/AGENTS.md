@@ -4,6 +4,12 @@ Bootstrap Mode: @@BOOTSTRAP_MODE@@
 
 Agent Document Mode: @@AGENT_DOC_MODE@@
 
+Git Remote Setup: @@GIT_REMOTE_SETUP@@
+
+Git Push Mode: @@GIT_PUSH_MODE@@
+
+Git 配置是项目长期策略，不代表服务器已配置分支保护或托管 Merge Queue。Remote-auto 仅允许在测试、独立 Review、Merge Queue 最终检查通过后由队列推送；Coding Agent 不得直接 push main。Remote-pending 表示本地初始化已完成但远端尚未配置；Local-only 不自动推送。
+
 人类唯一操作入口是项目 Agent 对话框。首次安装先识别生产目标；没有生产目标时采用 Local-first，有目标时展示配置并询问是否授权 Production-direct。
 Agent Document Mode 默认 isolated；不主动询问 indexed。只有人提出要提交条件索引时，才检查并展示精确路径、确认不清楚的授权范围。超时或无回复不授予 Production-direct / indexed；已安装项目沿用有效记录。
 只有索引允许进入 Git：indexed 在用户同意的原核心文档追加条件索引，其余 Bootstrap 正文和产物留在本地。
@@ -147,7 +153,7 @@ Deployment Mode: @@DEPLOYMENT_MODE@@
 
 | 模式 | 完成开发后的行为 |
 |---|---|
-| Local-first（无生产目标时的默认值） | 完成修改 → 执行测试 → 独立 Review → Merge Queue 合并并同步已配置的远端仓库；无 remote 时报告缺失。可提供已有 Local / Preview 入口。不得自行进入 Production，只有用户明确提出单次部署才继续 |
+| Local-first（无生产目标时的默认值） | 完成修改 → 执行测试 → 独立 Review → Merge Queue 合并；Remote-auto 时同步已配置远端，Local-only 时留在本地。无 remote 时报告缺失。可提供已有 Local / Preview 入口。不得自行进入 Production，只有用户明确提出单次部署才继续 |
 | Production-direct | 完成修改 → 执行测试 → 执行项目 Deployment Check → 检查全部通过 → 自动部署 Production；长期授权不代表跳过检查 |
 
 Local-first 适用于 UI / UX 调整、产品功能验证、尚需人工确认效果或生产风险较高的项目。

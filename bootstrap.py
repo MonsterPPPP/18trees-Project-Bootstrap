@@ -22,6 +22,8 @@ BASE = Path(__file__).resolve().parent
 DEPLOYMENT_MODES = ("Local-first", "Production-direct")
 BOOTSTRAP_MODES = ("Standard", "Local-only")
 AGENT_DOC_MODES = ("isolated", "indexed")
+GIT_PUSH_MODES = ("Remote-auto", "Local-only")
+GIT_REMOTE_CHOICES = ("existing", "create", "url", "local")
 LOCAL_SCOPES = ("AGENTS.md", "CLAUDE.md", "project.manifest.json", ".bootstrap",
                 "docs/project", ".agents/skills/project-interface", ".claude/skills/project-interface")
 LOCAL_DIRS = LOCAL_SCOPES[3:]
@@ -467,6 +469,191 @@ def git_output(root, *args, optional=False):
     return result.stdout
 
 
+def git_remotes(root):
+    names = git_output(root, "remote").splitlines()
+    return {name: git_output(root, "remote", "get-url", name).strip() for name in names}
+
+
+def ensure_git_repository(root):
+    """Initialize only local Git metadata; never stage, commit or push implicitly."""
+    root.mkdir(parents=True, exist_ok=True)
+    result = subprocess.run(["git", "-C", str(root), "rev-parse", "--show-toplevel"],
+                            capture_output=True, text=True, encoding="utf-8")
+    if result.returncode == 0:
+        if Path(result.stdout.strip()).resolve() != root.resolve():
+            raise ValueError("目标目录位于另一个 Git 工作区内；请使用仓库根目录初始化")
+        return False
+    # Refuse to initialize inside a parent worktree, where git -C would otherwise
+    # silently bind this project to its parent's history.
+    for parent in root.parents:
+        check = subprocess.run(["git", "-C", str(parent), "rev-parse", "--show-toplevel"],
+                               capture_output=True, text=True, encoding="utf-8")
+        if check.returncode == 0:
+            raise ValueError("目标目录位于另一个 Git 工作区内；请使用仓库根目录初始化")
+    result = subprocess.run(["git", "-C", str(root), "init"], capture_output=True,
+                            text=True, encoding="utf-8")
+    if result.returncode:
+        raise ValueError(f"本地 git init 失败：{result.stderr.strip()}")
+    return True
+
+
+def git_choice(prompt, choices, default):
+    labels = "/".join(choices)
+    while True:
+        answer = input(f"{prompt} [{labels}] (默认 {default}): ").strip() or default
+        if answer in choices:
+            return answer
+        print(f"请输入其中一项：{labels}")
+
+
+def slug_suggestion(name):
+    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+    return slug or "new-project"
+
+
+def repo_name_suggestions(project_name):
+    base = slug_suggestion(project_name)
+    return tuple(dict.fromkeys((base, f"{base}-app", f"{base}-project")))
+
+
+def new_remote_name(remotes):
+    if "origin" not in remotes:
+        return "origin"
+    name, suffix = "bootstrap", 2
+    while name in remotes:
+        name, suffix = f"bootstrap-{suffix}", suffix + 1
+    return name
+
+
+def configure_git(root, remote_setup=None, push_mode=None, repo_name=None,
+                  repo_visibility="private", remote_url=None, remote_name=None,
+                  interactive=False, project_name=None):
+    """Resolve remote and push intent. Creation never uploads local commits."""
+    remotes = git_remotes(root)
+    if remote_url and remote_setup is None:
+        remote_setup = "url"
+    if remote_setup is None:
+        if interactive:
+            if remotes:
+                print("检测到远端：" + ", ".join(f"{key}={value}" for key, value in remotes.items()))
+                remote_setup = git_choice("选择远端配置", ("existing", "create", "url", "local"), "existing")
+            else:
+                remote_setup = git_choice("初始化远端仓库", ("create", "url", "local"), "local")
+        else:
+            remote_setup = "existing" if remotes else "local"
+    if remote_setup not in GIT_REMOTE_CHOICES:
+        raise ValueError("无效远端选择")
+    if remote_setup == "existing" and not remotes:
+        raise ValueError("选择了已有远端，但仓库没有配置 remote")
+    if remote_setup == "existing" and len(remotes) > 1 and not remote_name:
+        if interactive:
+            options = tuple(remotes)
+            remote_name = git_choice("选择要使用的 remote 名称", options, options[0])
+        else:
+            raise ValueError("存在多个 remote；请通过 --remote-name 选择")
+    if remote_setup == "existing":
+        remote_name = remote_name or next(iter(remotes))
+        if remote_name not in remotes:
+            raise ValueError(f"没有名为 {remote_name} 的 remote")
+    if remote_setup == "url" and not remote_url and interactive:
+        remote_url = input("输入 GitHub 仓库 URL（留空则稍后补充）: ").strip() or None
+
+    if push_mode is None:
+        push_mode = git_choice("后续通过检查与 Merge Queue 后是否自动推送", GIT_PUSH_MODES,
+                               "Local-only") if interactive else "Local-only"
+    if push_mode not in GIT_PUSH_MODES:
+        raise ValueError("无效 Git 推送策略")
+
+    status = ("Remote-pending" if push_mode == "Remote-auto" else "Local-only") if remote_setup == "local" else "Remote-pending"
+    if remote_setup == "existing":
+        status = "Remote-ready"
+    elif remote_setup == "url" and remote_url:
+        if "\n" in remote_url or "\r" in remote_url:
+            raise ValueError("仓库 URL 不能包含换行")
+        if remote_name is None:
+            remote_name = new_remote_name(remotes)
+        if remote_name in remotes:
+            print(f"remote {remote_name} 已存在；未覆盖，远端设置待完成。")
+            return status, push_mode
+        result = subprocess.run(["git", "-C", str(root), "remote", "add", remote_name, remote_url],
+                                capture_output=True, text=True, encoding="utf-8")
+        if result.returncode:
+            print("Git remote 添加失败；本地初始化继续，远端设置待完成。")
+        else:
+            status = "Remote-ready"
+    elif remote_setup == "create":
+        gh = shutil.which("gh")
+        auth = subprocess.run([gh, "auth", "status"], capture_output=True, text=True) if gh else None
+        if not gh or auth.returncode:
+            if interactive:
+                supplied = input("GitHub CLI 未安装或未认证。可先补齐 gh 认证，或输入已有仓库 URL（留空则待完成）: ").strip()
+                if supplied:
+                    return configure_git(root, remote_setup="url", push_mode=push_mode,
+                        repo_name=repo_name, repo_visibility=repo_visibility, remote_url=supplied,
+                        remote_name=remote_name, interactive=False, project_name=project_name)
+            print("Git 远端配置待完成：请安装并认证 GitHub CLI，或提供仓库 URL。")
+        else:
+            account = subprocess.run([gh, "api", "user", "--jq", ".login"], capture_output=True, text=True)
+            owner = account.stdout.strip() if account.returncode == 0 else ""
+            if interactive and owner:
+                print(f"GitHub 目标账户：{owner}")
+            if not repo_name:
+                suggestions = repo_name_suggestions(project_name or root.name)
+                if interactive:
+                    print("仓库名建议：" + "；".join(f"{i + 1}. {value}" for i, value in enumerate(suggestions)))
+                    answer = input("选择编号或输入自定义仓库名: ").strip()
+                    repo_name = suggestions[int(answer) - 1] if answer.isdigit() and 1 <= int(answer) <= len(suggestions) else answer or None
+                else:
+                    repo_name = None
+            if repo_name:
+                if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*(/[A-Za-z0-9][A-Za-z0-9_.-]*)?", repo_name):
+                    print("仓库名格式无效；远端设置保持待完成，请使用 repository 或 owner/repository 后重试。")
+                    return "Remote-pending", push_mode
+                if "/" in repo_name:
+                    repo = repo_name
+                elif owner:
+                    repo = f"{owner}/{repo_name}"
+                else:
+                    raise ValueError("无法读取 GitHub 用户名；请使用 owner/repository 形式提供 --repo-name")
+                repo_visibility = repo_visibility or (git_choice("新仓库可见性", ("private", "public"), "private") if interactive else "private")
+                if repo_visibility not in ("private", "public"):
+                    raise ValueError("仓库可见性必须是 private 或 public")
+                remote_name = remote_name or new_remote_name(remotes)
+                if remote_name in remotes:
+                    raise ValueError(f"remote {remote_name} 已存在；未覆盖现有 remote")
+                if interactive:
+                    print(f"将创建 {repo}（{repo_visibility}），并添加 remote {remote_name}；不会推送现有提交。")
+                    if git_choice("确认创建", ("yes", "no"), "yes") != "yes":
+                        status = "Remote-pending"
+                        repo = None
+                if repo:
+                    result = subprocess.run([gh, "repo", "create", repo, f"--{repo_visibility}",
+                                             "--source", str(root), "--remote", remote_name],
+                                            capture_output=True, text=True)
+                    if result.returncode:
+                        print("GitHub 仓库创建未完成；本地初始化继续，远端设置待完成。")
+                    else:
+                        status = "Remote-ready"
+            else:
+                print("Git 远端配置待完成：请提供仓库名后重试。")
+    return status, push_mode
+
+
+def preflight_git_selection(root, remote_setup, push_mode, remote_name, interactive=False):
+    if remote_setup is not None and remote_setup not in GIT_REMOTE_CHOICES:
+        raise ValueError("无效远端选择")
+    if push_mode is not None and push_mode not in GIT_PUSH_MODES:
+        raise ValueError("无效 Git 推送策略")
+    if remote_setup == "existing":
+        remotes = git_remotes(root)
+        if not remotes:
+            raise ValueError("选择了已有远端，但仓库没有配置 remote")
+        if remote_name and remote_name not in remotes:
+            raise ValueError(f"没有名为 {remote_name} 的 remote")
+        if len(remotes) > 1 and not remote_name and not interactive:
+            raise ValueError("存在多个 remote；请通过 --remote-name 选择")
+
+
 def local_git(root):
     if Path(git_output(root, "rev-parse", "--show-toplevel").strip()).resolve() != root.resolve():
         raise ValueError("Local-only 必须安装到 Git 工作区根目录")
@@ -583,6 +770,9 @@ def verify_install(target):
     if not re.search(r"^Bootstrap Mode: Local-only$", agents, re.M) or not re.search(
             r"^Deployment Mode: (Local-first|Production-direct)$", agents, re.M):
         raise ValueError("本地模式配置无效；请恢复 AGENTS.md 中的模式")
+    if not re.search(r"^Git Remote Setup: (Remote-pending|Remote-ready|Local-only)$", agents, re.M) or not re.search(
+            r"^Git Push Mode: (Remote-auto|Local-only)$", agents, re.M):
+        raise ValueError("本地 Git 远端或推送策略无效；请恢复 AGENTS.md 中的配置")
     if state["version"] == 3 and f'Agent Document Mode: {state["agent_doc_mode"]}\n' not in agents:
         raise ValueError("文档写入方式与安装记录不同；重复 init 不用于切换方式")
     expected_config = local_config(root)
@@ -663,7 +853,8 @@ def initialize_local(root, name, explicit, deployment_mode, agent_doc_mode):
     files = {name: source.read_bytes() for name, source in local_sources().items()}
     for filename in ("AGENTS.md", "docs/overview.md", "docs/rules.md", "skills/project-interface/SKILL.md"):
         files[filename] = local_text(files[filename].decode("utf-8")).replace("@@BOOTSTRAP_MODE@@", "Local-only").replace(
-            "@@DEPLOYMENT_MODE@@", mode).replace("@@AGENT_DOC_MODE@@", agent_doc_mode).encode("utf-8")
+            "@@DEPLOYMENT_MODE@@", mode).replace("@@AGENT_DOC_MODE@@", agent_doc_mode).replace(
+            "@@GIT_REMOTE_SETUP@@", "Remote-pending").replace("@@GIT_PUSH_MODE@@", "Local-only").encode("utf-8")
     manifest = validate_manifest(starter(name))
     manifest["$schema"] = "schema/semantic-project.schema.json"
     files["project.manifest.json"] = (encode(manifest) + "\n").encode("utf-8")
@@ -747,7 +938,54 @@ def deinitialize(target, yes=False):
     return deinitialize_legacy(target, yes)
 
 
-def initialize(target, name, explicit=None, deployment_mode=None, interactive=False, bootstrap_mode=None, agent_doc_mode=None):
+def update_git_policy(root, bootstrap_mode, remote_status, push_mode):
+    path = root / (f"{LOCAL_HOME}/AGENTS.md" if bootstrap_mode == "Local-only" else "AGENTS.md")
+    data = path.read_bytes()
+    text = data.decode("utf-8")
+    text, remote_count = re.subn(r"^Git Remote Setup: (?:@@GIT_REMOTE_SETUP@@|Remote-pending|Remote-ready|Local-only)$",
+                                f"Git Remote Setup: {remote_status}", text, count=1, flags=re.M)
+    text, push_count = re.subn(r"^Git Push Mode: (?:@@GIT_PUSH_MODE@@|Remote-auto|Local-only)$",
+                              f"Git Push Mode: {push_mode}", text, count=1, flags=re.M)
+    if remote_count != 1 or push_count != 1:
+        raise ValueError("初始化配置缺少 Git 策略入口")
+    atomic_bytes(path, text.encode("utf-8"))
+
+
+def continue_git_setup(root, bootstrap_mode, remote_setup=None, push_mode=None, repo_name=None,
+                       repo_visibility=None, remote_url=None, remote_name=None, interactive=False,
+                       project_name=None):
+    """Complete or update Git choices on an already installed project without reinstalling it."""
+    path = root / (f"{LOCAL_HOME}/AGENTS.md" if bootstrap_mode == "Local-only" else "AGENTS.md")
+    if not path.is_file():
+        return False
+    text = path.read_text(encoding="utf-8")
+    status_match = re.search(r"^Git Remote Setup: (Remote-pending|Remote-ready|Local-only)$", text, re.M)
+    push_match = re.search(r"^Git Push Mode: (Remote-auto|Local-only)$", text, re.M)
+    if not status_match or not push_match:
+        return False
+    has_request = any(value is not None for value in (remote_setup, push_mode, repo_name, remote_url, remote_name, repo_visibility))
+    if not has_request and status_match[1] != "Remote-pending":
+        return False
+    if status_match[1] == "Remote-pending" and not has_request and not interactive:
+        return False
+    selected_push = push_mode or push_match[1]
+    status, selected_push = configure_git(root, remote_setup=remote_setup, push_mode=selected_push,
+        repo_name=repo_name, repo_visibility=repo_visibility, remote_url=remote_url,
+        remote_name=remote_name, interactive=interactive, project_name=project_name)
+    if status == status_match[1] and selected_push == push_match[1]:
+        return False
+    update_git_policy(root, bootstrap_mode, status, selected_push)
+    return True
+
+
+def git_setup_pending(root, bootstrap_mode):
+    path = root / (f"{LOCAL_HOME}/AGENTS.md" if bootstrap_mode == "Local-only" else "AGENTS.md")
+    return path.is_file() and bool(re.search(r"^Git Remote Setup: Remote-pending$", path.read_text(encoding="utf-8"), re.M))
+
+
+def initialize(target, name, explicit=None, deployment_mode=None, interactive=False, bootstrap_mode=None,
+               agent_doc_mode=None, git_remote_setup=None, git_push_mode=None, repo_name=None,
+               repo_visibility=None, remote_url=None, remote_name=None):
     if not (BASE / "templates/AGENTS.md").is_file():
         raise ValueError("init 需要完整 Bootstrap 源仓库；由 Agent 从源仓库执行")
     root = Path(os.path.abspath(target))
@@ -760,12 +998,67 @@ def initialize(target, name, explicit=None, deployment_mode=None, interactive=Fa
             r"^Bootstrap Mode: Standard$", saved_agents, re.M) and not (root / LOCAL_HOME).exists() else "Local-only"
     if bootstrap_mode not in BOOTSTRAP_MODES:
         raise ValueError("无效 Bootstrap Mode")
+    if name is None:
+        saved_manifest = root / (f"{LOCAL_HOME}/project.manifest.json" if (root / LOCAL_HOME).exists() else "project.manifest.json")
+        if saved_manifest.is_file():
+            existing = read_json(saved_manifest)
+            product = next((node for node in existing.get("nodes", []) if node.get("layer") == "product"), None)
+            name = product.get("name") if product else None
+        if name is None and interactive:
+            name = input("输入项目名: ").strip() or "新项目"
+        elif name is None:
+            raise ValueError("缺少项目名；请让 Agent 询问用户，或通过 --name 提供")
+    if repo_name is not None and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*(/[A-Za-z0-9][A-Za-z0-9_.-]*)?", repo_name):
+        raise ValueError("仓库名格式无效；使用 repository 或 owner/repository")
+    if repo_visibility not in (None, "private", "public"):
+        raise ValueError("仓库可见性必须是 private 或 public")
+    if remote_url and ("\n" in remote_url or "\r" in remote_url):
+        raise ValueError("仓库 URL 不能包含换行")
     if bootstrap_mode == "Local-only":
-        return initialize_local(root, name, explicit, deployment_mode, agent_doc_mode)
+        created_git = ensure_git_repository(root)
+        try:
+            preflight_git_selection(root, git_remote_setup, git_push_mode, remote_name, interactive)
+            already_installed = (root / LOCAL_HOME / "install-state.json").is_file()
+            if already_installed:
+                has_git_request = any(value is not None for value in
+                    (git_remote_setup, git_push_mode, repo_name, repo_visibility, remote_url, remote_name))
+                if has_git_request or (interactive and git_setup_pending(root, bootstrap_mode)):
+                    continue_git_setup(root, bootstrap_mode, git_remote_setup, git_push_mode, repo_name,
+                        repo_visibility, remote_url, remote_name, interactive, name)
+                    return 0
+            count = initialize_local(root, name, explicit, deployment_mode, agent_doc_mode)
+            if already_installed:
+                return count
+            git_status, push_mode = configure_git(root, remote_setup=git_remote_setup,
+                push_mode=git_push_mode, repo_name=repo_name, repo_visibility=repo_visibility,
+                remote_url=remote_url, remote_name=remote_name, interactive=interactive, project_name=name)
+            update_git_policy(root, bootstrap_mode, git_status, push_mode)
+            verify_install(root)
+            return count
+        except Exception:
+            if created_git and not (root / LOCAL_HOME / "install-state.json").is_file():
+                shutil.rmtree(root / ".git", ignore_errors=True)
+            raise
     if (root / LOCAL_HOME).exists():
         raise ValueError("初始化冲突：已有 Local-only；不能用 init 切换模式")
+    already_standard = (root / ".bootstrap/bootstrap.py").is_file()
     saved = re.search(r"^Deployment Mode: (Local-first|Production-direct)$", saved_agents, re.M)
     saved_doc = re.search(r"^Agent Document Mode: (isolated|indexed)$", saved_agents, re.M)
+    has_git_request = any(value is not None for value in
+        (git_remote_setup, git_push_mode, repo_name, repo_visibility, remote_url, remote_name))
+    same_modes = (not deployment_mode or not saved or deployment_mode == saved[1]) and (
+        not agent_doc_mode or not saved_doc or agent_doc_mode == saved_doc[1])
+    if already_standard and same_modes and (has_git_request or (interactive and git_setup_pending(root, bootstrap_mode))):
+        created_git = ensure_git_repository(root)
+        try:
+            preflight_git_selection(root, git_remote_setup, git_push_mode, remote_name, interactive)
+            continue_git_setup(root, bootstrap_mode, git_remote_setup, git_push_mode, repo_name,
+                repo_visibility, remote_url, remote_name, interactive, name)
+        except Exception:
+            if created_git:
+                shutil.rmtree(root / ".git", ignore_errors=True)
+            raise
+        return 0
     if (root / ".bootstrap/bootstrap.py").is_file() and saved and saved_doc:
         deployment_mode = deployment_mode or saved[1]
         agent_doc_mode = agent_doc_mode or saved_doc[1]
@@ -773,6 +1066,11 @@ def initialize(target, name, explicit=None, deployment_mode=None, interactive=Fa
     manifest = validate_manifest(starter(name))
     files = {relative: source.read_bytes() for relative, source in install_files().items()}
     files["AGENTS.md"] = files["AGENTS.md"].replace(b"@@DEPLOYMENT_MODE@@", deployment_mode.encode("utf-8"))
+    saved_remote = re.search(r"^Git Remote Setup: (Remote-pending|Remote-ready|Local-only)$", saved_agents, re.M)
+    saved_push = re.search(r"^Git Push Mode: (Remote-auto|Local-only)$", saved_agents, re.M)
+    files["AGENTS.md"] = files["AGENTS.md"].replace(b"@@GIT_REMOTE_SETUP@@",
+        (saved_remote[1] if saved_remote else "Remote-pending").encode("utf-8")).replace(
+        b"@@GIT_PUSH_MODE@@", (saved_push[1] if saved_push else "Local-only").encode("utf-8"))
     files["AGENTS.md"] = files["AGENTS.md"].replace(b"@@BOOTSTRAP_MODE@@", b"Standard").replace(b"@@AGENT_DOC_MODE@@", agent_doc_mode.encode("utf-8"))
     for relative, data in files.items():
         path = check_target(root, relative)
@@ -787,6 +1085,13 @@ def initialize(target, name, explicit=None, deployment_mode=None, interactive=Fa
         validate_map(manifest, map_path)
     else:
         files["docs/project/map.html"] = map_document(manifest, render_diagrams(manifest, explicit)).encode("utf-8")
+    created_git = ensure_git_repository(root)
+    try:
+        preflight_git_selection(root, git_remote_setup, git_push_mode, remote_name, interactive)
+    except Exception:
+        if created_git:
+            shutil.rmtree(root / ".git", ignore_errors=True)
+        raise
     created = []
     try:
         for relative, data in files.items():
@@ -803,6 +1108,23 @@ def initialize(target, name, explicit=None, deployment_mode=None, interactive=Fa
     except Exception:
         for path in reversed(created):
             path.unlink(missing_ok=True)
+        if created_git:
+            shutil.rmtree(root / ".git", ignore_errors=True)
+        raise
+    if already_standard:
+        continue_git_setup(root, bootstrap_mode, git_remote_setup, git_push_mode, repo_name,
+            repo_visibility, remote_url, remote_name, interactive, name)
+        return len(created)
+    try:
+        git_status, push_mode = configure_git(root, remote_setup=git_remote_setup,
+            push_mode=git_push_mode, repo_name=repo_name, repo_visibility=repo_visibility,
+            remote_url=remote_url, remote_name=remote_name, interactive=interactive, project_name=name)
+        update_git_policy(root, bootstrap_mode, git_status, push_mode)
+    except Exception:
+        for path in reversed(created):
+            path.unlink(missing_ok=True)
+        if created_git:
+            shutil.rmtree(root / ".git", ignore_errors=True)
         raise
     return len(created)
 
@@ -812,7 +1134,7 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
     init = commands.add_parser("init", help="无覆盖初始化；相同内容重复执行无操作")
     init.add_argument("target", type=Path)
-    init.add_argument("--name", default="新项目")
+    init.add_argument("--name", help="项目名；交互模式下缺省时询问")
     init.add_argument("--archify", help="外部 archify skill 目录或 bin/archify.mjs 路径")
     init.add_argument("--deployment-mode", choices=DEPLOYMENT_MODES,
                       help="默认 Local-first：经 Review 与队列合并后同步仓库，不自动上生产；Production-direct 需用户明确授权")
@@ -820,6 +1142,15 @@ def main():
                       help="默认 isolated，不改原文档；indexed 需用户明确授权后才追加可提交的条件索引")
     init.add_argument("--bootstrap-mode", choices=BOOTSTRAP_MODES,
                       help="默认 Local-only（仅本地）；Standard 需用户明确选择")
+    init.add_argument("--git-remote-setup", choices=GIT_REMOTE_CHOICES,
+                      help="初始化远端：existing / create（GitHub CLI）/ url / local；TTY 下交互询问")
+    init.add_argument("--git-push-mode", choices=GIT_PUSH_MODES,
+                      help="独立推送策略：Remote-auto（仅 Merge Queue 门禁通过后）或 Local-only")
+    init.add_argument("--remote-name", help="已有 remote 名称；多个 remote 时必须选择")
+    init.add_argument("--remote-url", help="用户提供的仓库 URL；只添加 remote，不推送")
+    init.add_argument("--repo-name", help="GitHub 仓库名；可用 owner/name 指定 owner")
+    init.add_argument("--repo-visibility", choices=("private", "public"),
+                      help="新 GitHub 仓库可见性，默认 private")
     deinit = commands.add_parser("deinit", help="预览 Local-only 清理；加 --yes 删除本地 Bootstrap 与 exclude 区块")
     deinit.add_argument("target", type=Path)
     deinit.add_argument("--yes", action="store_true", help="确认删除全部本地 Bootstrap 产物，含后续编辑")
@@ -836,8 +1167,19 @@ def main():
     try:
         if args.command == "init":
             count = initialize(args.target, args.name, args.archify, args.deployment_mode,
-                               interactive=sys.stdin.isatty(), bootstrap_mode=args.bootstrap_mode, agent_doc_mode=args.agent_doc_mode)
+                               interactive=sys.stdin.isatty(), bootstrap_mode=args.bootstrap_mode,
+                               agent_doc_mode=args.agent_doc_mode, git_remote_setup=args.git_remote_setup,
+                               git_push_mode=args.git_push_mode, repo_name=args.repo_name,
+                               repo_visibility=args.repo_visibility, remote_url=args.remote_url,
+                               remote_name=args.remote_name)
             print(f"文件已落地：新增/接入 {count} 项。尚需安装 Agent 完成技术检查并启动独立子 Agent 验收；未 PASS 不得报告初始化完成")
+            config_path = args.target / (f"{LOCAL_HOME}/AGENTS.md" if (args.target / LOCAL_HOME).exists() else "AGENTS.md")
+            if config_path.is_file():
+                settings = config_path.read_text(encoding="utf-8")
+                remote = re.search(r"^Git Remote Setup: (Remote-pending|Remote-ready|Local-only)$", settings, re.M)
+                push = re.search(r"^Git Push Mode: (Remote-auto|Local-only)$", settings, re.M)
+                if remote and push:
+                    print(f"Git 远端状态：{remote[1]}；推送策略：{push[1]}")
         elif args.command == "verify-install":
             verify_install(args.target)
             print("技术检查通过（安装、Git 隔离、地图一致性）；不代表独立子 Agent 验收通过")
