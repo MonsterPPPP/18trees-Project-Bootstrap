@@ -151,3 +151,25 @@ exclude 原字节和已评审任务提交均保留，项目只剩 `.git` 与 `lo
 | 工具链回归 | `python -m unittest discover -s tests -v`：30/30 通过；Python 3.14.7、Node.js 24.12.0、jsonschema 4.26.0、archify 2.15.0 |
 
 这是规范与 CLI 默认值的行为验收；未测试任何真实生产目标、托管 Merge Queue 或远端分支保护。本仓库没有自己的非合成 project manifest，因此本次不生成产品地图。
+
+**2026-10-04 · 可选低成本 CLI 子 Agent v1**
+
+已在可访问的 Windows 本机完成真实验证，复用 DSH 0.1.2-rc.1、Node 24.12.0，补装 acpx 0.19.4；未升级 DSH、创建凭据或扩大权限。
+
+| 验收 | 实际证据 |
+|---|---|
+| 真实握手 | 官方 acpx runtime → DSH 原生 ACP，protocolVersion=1；会话 close/list/resume、HTTP MCP 已声明，图像/音频/embeddedContext 未声明；没有把声明当成授权 |
+| 模型与认证 | 原生现有 deepseek-official / deepseek-v4-flash；无工具固定响应 BOOTSTRAP_DSH_OK，CLI 退出 0、对应 prompt 的 end_turn；协议认证与模型凭据分开判断 |
+| 初始化与复用 | 项目外合成目录带空格路径：skip 正常初始化；enable、同项目再次 init、另一项目 init 均退出 0，ready/reused=true，cwd 正确；规则、说明、两个接入工具均分发，Git status 干净；没有在源码根 init |
+| 主 Agent 实际调用 | 从另一合成项目的已安装 bootstrap.py 调用 agent run：6×7 返回 42，退出 0、end_turn、toolFailures=0；主 Agent 比对预期完成验收 |
+| 权限不足 | 真实原生文件写入被 read-only 沙箱拒绝，合成 sentinel 未创建；原生 pwsh 按 DSH 机制发出 workspace-write 一次性请求，官方 runtime 收到并 reject_once，deniedRequests=1，sentinel 仍未创建；未批准或改变沙箱 |
+| 活动任务取消 | 等待真实 prompt 已提交后调用官方 runtime cancel，返回 status=cancelled、stopReason=cancelled；未按成功验收 |
+| 不可用与失败 | 真实不存在的 ACP 启动入口被 probe 拒绝（ACP_PROBE_FAILED）；工具测试另覆盖缺 DSH、认证烟测失败、版本变化、注册冲突、错误/取消/不相关响应/原生工具失败均不得伪报成功 |
+| 地图 | 新增范围明确的 docs/bootstrap.manifest.json，仅投影本次能力；artifacts/bootstrap-map.html 使用既有生成器与 archify 9/9 showcase，零警告；map 一致性通过；四种桌面尺寸离线零请求/脚本错误/横向溢出，已人工查看最小亮色与最大暗色截图；完整四层索引仍需纵向滚动 |
+
+最终全套 39 项 unittest 通过（76.177 秒，退出 0）；CLI 回归测试使用独立合成机器 home，避免触及本机选择、认证和付费调用。真实 CLI 的原生工具失败返回 ok=false / ACP_TOOL_FAILED，即使结束为 end_turn 也不伪报成功。测试结果和独立 Review 绑定提交 head，记录在评审包中。
+合成安装只作为技术验证，不代签真实目标项目的 Installation Verifier PASS。无生产部署目标，未发布 Production。
+远端 main 的分支保护 API 返回 404 Branch not protected；本次依靠独立 Review 与串行 Merge Queue 流程，不宣称服务端已经强制执行。
+
+本地复现：`python bootstrap.py agent setup --cwd <目标>`；真实任务通过 `agent run --cwd <目标> --file -`。
+完整说明见 [低成本能力](low-cost-agent.md)。地图可用 `python bootstrap.py map docs/bootstrap.manifest.json --output artifacts/bootstrap-map.html` 重新生成；本机会话与收据均留在机器/忽略目录，不入 Git。

@@ -1,7 +1,7 @@
 # 工具链契约
 
 运行 `python bootstrap.py --help` 查看初始化、校验和地图生成入口。
-运行依赖只有 Python、`jsonschema` 和生成时调用的外部 Node.js / archify；浏览已有 HTML 不需要这些环境。
+常规运行依赖只有 Python、`jsonschema` 和生成时调用的外部 Node.js / archify；浏览已有 HTML 不需要这些环境。可选低成本能力另复用 acpx 与本机 DSH。
 
 **Manifest v1**
 
@@ -98,5 +98,18 @@ Playwright 仅为可选验收依赖，运行时不需要。脚本使用已有 Ch
 不下载浏览器；在离线 context 中检查请求、脚本异常、首页入口、四层、metadata、流程切换与横向溢出，
 并输出四个桌面尺寸的亮暗截图。整页语义索引允许纵向滚动，不宣称整个索引适合一屏。
 截图必须人工查看，自动收据不会代替视觉判断。
+
+**可选低成本 CLI 子 Agent v1**
+
+初始化的可选能力为主 Agent → acpx → 本机 DSH 原生 ACP，详见源码的 `docs/low-cost-agent.md`，
+安装后为工具目录中的 `low-cost-agent.md`。此说明、工具和简短规则随既有两种布局分发。
+首次没有机器选择时由宿主询问启用/跳过，未回复不启用；已回答复用机器记录。
+常规初始化不依赖此能力成功。机器进度使用 acpx 自有目录，公开项目入口不含密钥、个人路径或会话日志。
+先真实握手与能力核对，再付费无工具烟测；复用只做低成本可用性检查，变化或失败才深入诊断。
+缺凭据保存 unavailable 并给出最小续跑步骤，不虚构已调通，不重复安装、读取全套资料或默认重试。
+主 Agent 优先考虑边界清楚、上下文少、容易验收的简单任务；成本接近直接完成则直接处理。
+这是软性偏好，无评分服务、委派比例或强制路由。最小上下文交接、简短结果；主 Agent 保留最终验收。
+默认只读，DSH 原生权限与 acpx 拒绝策略不放宽原任务授权；ACP 声明和 cwd 不是 OS 沙箱。
+不引入 OpenClaw/protoAgent 框架，不复制上游 Skill 正文；详细资料按需引用，以本项目授权规则优先。
 
 下一步（1 分钟）：运行 `python bootstrap.py validate examples/synthetic.manifest.json`。

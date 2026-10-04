@@ -41,6 +41,14 @@ Local-only 正文及产物只放 .project-bootstrap/；isolated 不改原文档�
 地图以 Product / Feature Workflow 为首页，四层明确分开，metadata 默认折叠。
 CLI 校验不证明语义证据正确，也不自动强制节点实现边界；这两项由 Agent 核实。
 
+**可选低成本 CLI 子 Agent**
+
+机器选择与能力状态用 `python .bootstrap/bootstrap.py agent setup --cwd .` 读取；首次未选择才询问启用/跳过，已回答不重复问。入口与续跑说明见 `.bootstrap/low-cost-agent.md`。
+优先考虑边界清楚、上下文少、容易核验的简单只读工作；交接、等待、验收与返工成本接近直接完成时直接处理。无评分、固定比例或强制委派。
+最小任务包包含范围、必要上下文、预期与验收；要求简短结果、产物位置、验证和阻塞，不回灌全部推理/事件。相关任务可复用会话，无关任务用新会话。
+主 Agent 保留最终验收，按风险核验；明显失败及时接手，不默认重试或递归委派。不可用不阻塞无关工作，不宣称未经测量的节省。
+权限不超过原授权；不全量批准、不放宽 DSH 沙箱，不把 ACP 声明或 cwd 当成 OS 隔离。上游 acpx Skill 按需参考，本项目规则优先。
+
 **Gateway Flow 角色路由**
 
 读取 `.bootstrap/interface-spec.md` 中完整的《Git Workflow（Gateway Flow）》与 Review Subagent 契约。

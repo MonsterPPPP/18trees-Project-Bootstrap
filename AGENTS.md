@@ -9,6 +9,10 @@
 
 Bootstrap Mode: Standard
 
+可选低成本子 Agent 入口为 `docs/low-cost-agent.md` 和 `python bootstrap.py agent setup --cwd .`。
+优先考虑边界清楚、上下文少、容易验收的简单只读任务；交接成本接近直接完成时直接做，无强制比例或评分。
+机器记录复用启用/跳过选择；最小上下文、简短返回，主 Agent 最终验收，失败及时接手。权限不超出原任务，不全量批准或放宽沙箱。
+
 本仓库是 Bootstrap 源码仓库，不是待安装目标。禁止对仓库根目录再次运行 `bootstrap.py init`、复制一份 `.project-bootstrap/` 或追加自指索引；按本文件的 Gateway Flow 直接维护规范、模板、skill 与工具链。源码规则入口是 `docs/interface-spec.md`、`docs/toolchain.md` 和 `skills/project-interface/SKILL.md`。
 
 人类安装入口是目标项目 Agent 对话框；README 只提供对话示例，INSTALL.md 面向执行安装的 Agent。

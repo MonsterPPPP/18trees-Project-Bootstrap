@@ -332,3 +332,8 @@ This ecosystem is already very mature; we are very small. Here is the full pictu
 ## License
 
 [MIT](LICENSE) © 2026 十八木
+
+Optional low-cost subagent: tell your project Agent “enable the low-cost DSH subagent” or “skip”.
+The Agent configures and verifies the first opt-in, then reuses machine settings across projects.
+Simple, bounded, verifiable work is preferred; delegation stays optional and the main Agent owns acceptance.
+If DSH is unavailable, the main Agent continues. [Capability and usage](docs/low-cost-agent.md).

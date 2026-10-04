@@ -331,3 +331,7 @@ python -m unittest discover -s tests -v
 ## License
 
 [MIT](LICENSE) © 2026 十八木
+
+可选低成本子 Agent：在项目 Agent 对话框说“启用低成本 DSH 子 Agent”或“跳过”。
+首次选择后由 AI 配置与验证，后续项目复用；不可用时主 Agent 继续工作。优先考虑简单、清楚、容易核验的任务，
+由主 Agent 最终验收，不强制委派。[能力与使用说明](docs/low-cost-agent.md)。

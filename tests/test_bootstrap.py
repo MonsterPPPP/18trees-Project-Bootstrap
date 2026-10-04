@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import patch
 
 import bootstrap as app
+from test_local_only import isolated_agent_env
 
 
 def selected_install(*args, **kwargs):
@@ -74,7 +75,7 @@ class BootstrapTests(unittest.TestCase):
     def test_init_then_manifest_then_map_and_portable_cli(self):
         with tempfile.TemporaryDirectory(prefix="bootstrap-e2e-") as temp:
             project = Path(temp) / "新项目 with spaces"
-            self.assertEqual(selected_install(project, "空项目", bootstrap_mode="Standard"), 14)
+            self.assertEqual(selected_install(project, "空项目", bootstrap_mode="Standard"), 17)
             before = {p.relative_to(project): (p.read_bytes(), p.stat().st_mtime_ns) for p in project.rglob("*") if p.is_file()}
             self.assertEqual(selected_install(project, "空项目", bootstrap_mode="Standard"), 0)
             self.assertEqual(before, {p.relative_to(project): (p.read_bytes(), p.stat().st_mtime_ns) for p in project.rglob("*") if p.is_file()})
@@ -131,7 +132,8 @@ class BootstrapTests(unittest.TestCase):
                 with self.subTest(option=option):
                     project = Path(temp) / str(len(list(Path(temp).iterdir())))
                     command = [sys.executable, "-X", "utf8", str(app.BASE / "bootstrap.py"), "init", str(project), "--name", "新项目", "--bootstrap-mode", "Standard", "--agent-doc-mode", "isolated"]
-                    result = subprocess.run(command + option, input="", capture_output=True, text=True, encoding="utf-8")
+                    result = subprocess.run(command + option, input="", capture_output=True, text=True, encoding="utf-8",
+                                            env=isolated_agent_env(temp))
                     self.assertEqual(result.returncode, 0, result.stderr)
                     agents = (project / "AGENTS.md").read_text(encoding="utf-8")
                     template = (app.BASE / "templates/AGENTS.md").read_text(encoding="utf-8")
@@ -162,7 +164,8 @@ class BootstrapTests(unittest.TestCase):
             project = Path(temp) / "standard"
             with patch.object(sys, "argv", ["bootstrap.py", "init", str(project), "--name", "Synthetic", "--bootstrap-mode", "Standard", "--agent-doc-mode", "isolated", "--deployment-mode", "Local-first", "--git-remote-setup", "local", "--git-push-mode", "Local-only"]), \
                     patch.object(sys.stdin, "isatty", return_value=True), \
-                    patch("builtins.input", side_effect=AssertionError("Agent entry must not prompt")), patch("builtins.print"):
+                    patch("builtins.input", side_effect=AssertionError("Agent entry must not prompt")), patch("builtins.print"), \
+                    patch.dict(os.environ, isolated_agent_env(temp)):
                 self.assertEqual(app.main(), 0)
             self.assertIn("Deployment Mode: Local-first", (project / "AGENTS.md").read_text(encoding="utf-8"))
 
