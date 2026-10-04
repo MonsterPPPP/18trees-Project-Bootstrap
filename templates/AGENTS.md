@@ -8,7 +8,9 @@ Git Remote Setup: @@GIT_REMOTE_SETUP@@
 
 Git Push Mode: @@GIT_PUSH_MODE@@
 
-Git 配置是项目长期策略，不代表服务器已配置分支保护或托管 Merge Queue。Remote-auto 仅允许在测试、独立 Review、Merge Queue 最终检查通过后由队列推送；Coding Agent 不得直接 push main。Remote-pending 表示本地初始化已完成但远端尚未配置；Local-only 不自动推送。
+Git Remote Name: @@GIT_REMOTE_NAME@@
+
+Git 配置是项目长期策略，不代表服务器已配置分支保护或托管 Merge Queue。Remote-auto 仅允许在测试、独立 Review、Merge Queue 最终检查通过后向 Git Remote Name 指定的远端推送；Coding Agent 不得直接 push main。Remote-pending 表示本地初始化已完成但远端尚未配置；Local-only 不自动推送。Git Remote Name 为 none 表示没有选定可推送远端。
 可选低成本子 Agent：主 Agent → acpx → 本机 DSH。机器选择未记录时安装 Agent 询问启用/跳过，已回答不重复询问；不可用不阻塞无关工作。
 优先考虑边界清楚、上下文少、容易验证的简单只读任务；交接与验收成本接近直接完成时主 Agent 直接处理。此为偏好，无评分、比例或强制委派。
 只交付必要上下文；返回简短结果、产物位置、验证与阻塞。相关任务可复用会话，无关任务用新会话。主 Agent 保留最终验收，明显失败及时接手，不默认反复重试或递归委派。

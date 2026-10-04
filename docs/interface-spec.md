@@ -124,7 +124,7 @@ Strict Node Boundary：人明确「只修改 NODE:X」时，X 是硬边界，**�
 初始化先检查目标目录的 Git 仓库与全部 remote；目标不在已有工作区中时可执行本地 `git init`，不得暂存、提交或推送。
 Agent 分别询问远端设置（选择已有 remote、用 GitHub CLI 创建、提供仓库 URL、或仅保留本地）和推送策略（`Remote-auto` / `Local-only`），不得把“存在 remote”当作推送授权。
 已有 remote 必须展示名称和 URL；多个 remote 要由用户选择，不能覆盖或删除未选 remote。创建 GitHub 仓库默认 private；展示 GitHub 账户、仓库名和可见性后再创建，不传 `--push`。项目名默认使用用户给定值；缺少项目名或仓库名时询问用户，Agent 可给出仓库 slug 建议供选择或修改。
-GitHub CLI 缺失/未认证，或用户尚未提供 URL 时，本地安装仍可完成，但写入 `Git Remote Setup: Remote-pending` 并说明未完成；不推断 URL。`Remote-auto` 可独立记录，但远端可用前不得推送。配置成功写 `Remote-ready`，用户选本地写 `Local-only`。
+GitHub CLI 缺失/未认证，或用户尚未提供 URL 时，本地安装仍可完成，但写入 `Git Remote Setup: Remote-pending` 并说明未完成；不推断 URL。`Remote-auto` 可独立记录，但远端可用前不得推送。配置成功写 `Remote-ready` 和所选 `Git Remote Name`；多 remote 时必须持久化用户所选名称。用户选本地写 `Local-only`，`Git Remote Name` 为 `none`。
 `Remote-auto` 仅表示开发任务经测试、独立 Review、Merge Queue 最终检查后由队列同步远端；不授权 Coding Agent 直接 push main，也不绕过人工合并约束。新仓库创建只添加 remote，首次推送必须经过 Gateway Flow。
 
 **Git Workflow（Gateway Flow）· 1. 基本原则**

@@ -30,6 +30,7 @@ class GitInitializationTests(unittest.TestCase):
             agents = (root / "AGENTS.md").read_text(encoding="utf-8")
             self.assertIn("Git Remote Setup: Local-only", agents)
             self.assertIn("Git Push Mode: Local-only", agents)
+            self.assertIn("Git Remote Name: none", agents)
 
     def test_remote_auto_without_remote_stays_pending_and_never_pushes(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -38,6 +39,7 @@ class GitInitializationTests(unittest.TestCase):
             agents = (root / "AGENTS.md").read_text(encoding="utf-8")
             self.assertIn("Git Remote Setup: Remote-pending", agents)
             self.assertIn("Git Push Mode: Remote-auto", agents)
+            self.assertIn("Git Remote Name: none", agents)
             self.assertEqual(git(root, "remote"), "")
             self.assertEqual(git(root, "diff", "--cached", "--name-only"), "")
 
@@ -53,6 +55,7 @@ class GitInitializationTests(unittest.TestCase):
             agents = (root / "AGENTS.md").read_text(encoding="utf-8")
             self.assertIn("Git Remote Setup: Remote-ready", agents)
             self.assertIn("Git Push Mode: Remote-auto", agents)
+            self.assertIn("Git Remote Name: origin", agents)
             self.assertEqual(git(root, "remote", "get-url", "origin"), "https://github.com/example/resume.git")
 
     def test_local_only_pending_remote_retry_does_not_reverify_or_rewrite_project_files(self):
@@ -67,6 +70,8 @@ class GitInitializationTests(unittest.TestCase):
             self.assertEqual(git(root, "remote", "get-url", "origin"), "https://github.com/example/local-resume.git")
             self.assertIn("Git Remote Setup: Remote-ready",
                           (root / app.LOCAL_HOME / "AGENTS.md").read_text(encoding="utf-8"))
+            self.assertIn("Git Remote Name: origin",
+                          (root / app.LOCAL_HOME / "AGENTS.md").read_text(encoding="utf-8"))
 
     def test_user_url_adds_remote_without_uploading(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -74,7 +79,9 @@ class GitInitializationTests(unittest.TestCase):
             self.initialize(root, git_remote_setup="url", remote_url="https://github.com/example/synthetic.git",
                             git_push_mode="Remote-auto")
             self.assertEqual(git(root, "remote", "get-url", "origin"), "https://github.com/example/synthetic.git")
-            self.assertIn("Git Remote Setup: Remote-ready", (root / "AGENTS.md").read_text(encoding="utf-8"))
+            agents = (root / "AGENTS.md").read_text(encoding="utf-8")
+            self.assertIn("Git Remote Setup: Remote-ready", agents)
+            self.assertIn("Git Remote Name: origin", agents)
             self.assertEqual(git(root, "diff", "--cached", "--name-only"), "")
             self.assertNotEqual(subprocess.run(["git", "-C", str(root), "rev-parse", "--verify", "HEAD"], capture_output=True).returncode, 0)
 
@@ -88,7 +95,9 @@ class GitInitializationTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "多个 remote"):
                 self.initialize(root, git_remote_setup="existing", git_push_mode="Local-only")
             self.initialize(root, git_remote_setup="existing", remote_name="backup", git_push_mode="Local-only")
-            self.assertIn("Git Remote Setup: Remote-ready", (root / "AGENTS.md").read_text(encoding="utf-8"))
+            agents = (root / "AGENTS.md").read_text(encoding="utf-8")
+            self.assertIn("Git Remote Setup: Remote-ready", agents)
+            self.assertIn("Git Remote Name: backup", agents)
             self.assertEqual(git(root, "remote", "get-url", "origin"), "https://example.invalid/one.git")
             self.assertEqual(git(root, "remote", "get-url", "backup"), "https://example.invalid/two.git")
 
@@ -124,7 +133,9 @@ class GitInitializationTests(unittest.TestCase):
             self.assertIn("--private", create_call)
             self.assertNotIn("--push", create_call)
             self.assertEqual(git(root, "remote", "get-url", "origin"), "https://github.com/owner/synthetic-project.git")
-            self.assertIn("Git Push Mode: Remote-auto", (root / "AGENTS.md").read_text(encoding="utf-8"))
+            agents = (root / "AGENTS.md").read_text(encoding="utf-8")
+            self.assertIn("Git Push Mode: Remote-auto", agents)
+            self.assertIn("Git Remote Name: origin", agents)
 
     def test_missing_github_cli_leaves_remote_pending_but_keeps_local_install(self):
         with tempfile.TemporaryDirectory() as temp:

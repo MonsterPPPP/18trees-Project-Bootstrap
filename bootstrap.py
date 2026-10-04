@@ -577,7 +577,7 @@ def configure_git(root, remote_setup=None, push_mode=None, repo_name=None,
             remote_name = new_remote_name(remotes)
         if remote_name in remotes:
             print(f"remote {remote_name} 已存在；未覆盖，远端设置待完成。")
-            return status, push_mode
+            return status, push_mode, None
         result = subprocess.run(["git", "-C", str(root), "remote", "add", remote_name, remote_url],
                                 capture_output=True, text=True, encoding="utf-8")
         if result.returncode:
@@ -611,7 +611,7 @@ def configure_git(root, remote_setup=None, push_mode=None, repo_name=None,
             if repo_name:
                 if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*(/[A-Za-z0-9][A-Za-z0-9_.-]*)?", repo_name):
                     print("仓库名格式无效；远端设置保持待完成，请使用 repository 或 owner/repository 后重试。")
-                    return "Remote-pending", push_mode
+                    return "Remote-pending", push_mode, None
                 if "/" in repo_name:
                     repo = repo_name
                 elif owner:
@@ -639,7 +639,7 @@ def configure_git(root, remote_setup=None, push_mode=None, repo_name=None,
                         status = "Remote-ready"
             else:
                 print("Git 远端配置待完成：请提供仓库名后重试。")
-    return status, push_mode
+    return status, push_mode, remote_name if status == "Remote-ready" else None
 
 
 def preflight_git_selection(root, remote_setup, push_mode, remote_name, interactive=False):
@@ -781,7 +781,8 @@ def verify_install(target):
             r"^Deployment Mode: (Local-first|Production-direct)$", agents, re.M):
         raise ValueError("本地模式配置无效；请恢复 AGENTS.md 中的模式")
     if not re.search(r"^Git Remote Setup: (Remote-pending|Remote-ready|Local-only)$", agents, re.M) or not re.search(
-            r"^Git Push Mode: (Remote-auto|Local-only)$", agents, re.M):
+            r"^Git Push Mode: (Remote-auto|Local-only)$", agents, re.M) or not re.search(
+            r"^Git Remote Name: (none|[^\r\n]+)$", agents, re.M):
         raise ValueError("本地 Git 远端或推送策略无效；请恢复 AGENTS.md 中的配置")
     if state["version"] == 3 and f'Agent Document Mode: {state["agent_doc_mode"]}\n' not in agents:
         raise ValueError("文档写入方式与安装记录不同；重复 init 不用于切换方式")
@@ -865,7 +866,8 @@ def initialize_local(root, name, explicit, deployment_mode, agent_doc_mode):
     for filename in ("AGENTS.md", "docs/overview.md", "docs/rules.md", "skills/project-interface/SKILL.md"):
         files[filename] = local_text(files[filename].decode("utf-8")).replace("@@BOOTSTRAP_MODE@@", "Local-only").replace(
             "@@DEPLOYMENT_MODE@@", mode).replace("@@AGENT_DOC_MODE@@", agent_doc_mode).replace(
-            "@@GIT_REMOTE_SETUP@@", "Remote-pending").replace("@@GIT_PUSH_MODE@@", "Local-only").encode("utf-8")
+            "@@GIT_REMOTE_SETUP@@", "Remote-pending").replace("@@GIT_PUSH_MODE@@", "Local-only").replace(
+            "@@GIT_REMOTE_NAME@@", "none").encode("utf-8")
     manifest = validate_manifest(starter(name))
     manifest["$schema"] = "schema/semantic-project.schema.json"
     files["project.manifest.json"] = (encode(manifest) + "\n").encode("utf-8")
@@ -949,7 +951,7 @@ def deinitialize(target, yes=False):
     return deinitialize_legacy(target, yes)
 
 
-def update_git_policy(root, bootstrap_mode, remote_status, push_mode):
+def update_git_policy(root, bootstrap_mode, remote_status, push_mode, remote_name):
     path = root / (f"{LOCAL_HOME}/AGENTS.md" if bootstrap_mode == "Local-only" else "AGENTS.md")
     data = path.read_bytes()
     text = data.decode("utf-8")
@@ -957,7 +959,12 @@ def update_git_policy(root, bootstrap_mode, remote_status, push_mode):
                                 f"Git Remote Setup: {remote_status}", text, count=1, flags=re.M)
     text, push_count = re.subn(r"^Git Push Mode: (?:@@GIT_PUSH_MODE@@|Remote-auto|Local-only)$",
                               f"Git Push Mode: {push_mode}", text, count=1, flags=re.M)
-    if remote_count != 1 or push_count != 1:
+    text, name_count = re.subn(r"^Git Remote Name: (?:@@GIT_REMOTE_NAME@@|none|[^\r\n]*)$",
+                               f"Git Remote Name: {remote_name or 'none'}", text, count=1, flags=re.M)
+    if name_count == 0:
+        text, name_count = re.subn(r"^(Git Push Mode: (?:Remote-auto|Local-only))$",
+                                   rf"\1\nGit Remote Name: {remote_name or 'none'}", text, count=1, flags=re.M)
+    if remote_count != 1 or push_count != 1 or name_count != 1:
         raise ValueError("初始化配置缺少 Git 策略入口")
     atomic_bytes(path, text.encode("utf-8"))
 
@@ -980,12 +987,16 @@ def continue_git_setup(root, bootstrap_mode, remote_setup=None, push_mode=None, 
     if status_match[1] == "Remote-pending" and not has_request and not interactive:
         return False
     selected_push = push_mode or push_match[1]
-    status, selected_push = configure_git(root, remote_setup=remote_setup, push_mode=selected_push,
+    saved_name = re.search(r"^Git Remote Name: ([^\r\n]+)$", text, re.M)
+    if remote_name is None and saved_name and saved_name[1] != "none":
+        remote_name = saved_name[1]
+    status, selected_push, selected_remote = configure_git(root, remote_setup=remote_setup, push_mode=selected_push,
         repo_name=repo_name, repo_visibility=repo_visibility, remote_url=remote_url,
         remote_name=remote_name, interactive=interactive, project_name=project_name)
-    if status == status_match[1] and selected_push == push_match[1]:
+    name_match = re.search(r"^Git Remote Name: ([^\r\n]+)$", text, re.M)
+    if status == status_match[1] and selected_push == push_match[1] and (selected_remote or "none") == (name_match[1] if name_match else "none"):
         return False
-    update_git_policy(root, bootstrap_mode, status, selected_push)
+    update_git_policy(root, bootstrap_mode, status, selected_push, selected_remote)
     return True
 
 
@@ -1040,10 +1051,10 @@ def initialize(target, name, explicit=None, deployment_mode=None, interactive=Fa
             count = initialize_local(root, name, explicit, deployment_mode, agent_doc_mode)
             if already_installed:
                 return count
-            git_status, push_mode = configure_git(root, remote_setup=git_remote_setup,
+            git_status, push_mode, remote_name = configure_git(root, remote_setup=git_remote_setup,
                 push_mode=git_push_mode, repo_name=repo_name, repo_visibility=repo_visibility,
                 remote_url=remote_url, remote_name=remote_name, interactive=interactive, project_name=name)
-            update_git_policy(root, bootstrap_mode, git_status, push_mode)
+            update_git_policy(root, bootstrap_mode, git_status, push_mode, remote_name)
             verify_install(root)
             return count
         except Exception:
@@ -1081,7 +1092,8 @@ def initialize(target, name, explicit=None, deployment_mode=None, interactive=Fa
     saved_push = re.search(r"^Git Push Mode: (Remote-auto|Local-only)$", saved_agents, re.M)
     files["AGENTS.md"] = files["AGENTS.md"].replace(b"@@GIT_REMOTE_SETUP@@",
         (saved_remote[1] if saved_remote else "Remote-pending").encode("utf-8")).replace(
-        b"@@GIT_PUSH_MODE@@", (saved_push[1] if saved_push else "Local-only").encode("utf-8"))
+        b"@@GIT_PUSH_MODE@@", (saved_push[1] if saved_push else "Local-only").encode("utf-8")).replace(
+        b"@@GIT_REMOTE_NAME@@", b"none")
     files["AGENTS.md"] = files["AGENTS.md"].replace(b"@@BOOTSTRAP_MODE@@", b"Standard").replace(b"@@AGENT_DOC_MODE@@", agent_doc_mode.encode("utf-8"))
     for relative, data in files.items():
         path = check_target(root, relative)
@@ -1127,10 +1139,10 @@ def initialize(target, name, explicit=None, deployment_mode=None, interactive=Fa
             repo_visibility, remote_url, remote_name, interactive, name)
         return len(created)
     try:
-        git_status, push_mode = configure_git(root, remote_setup=git_remote_setup,
+        git_status, push_mode, remote_name = configure_git(root, remote_setup=git_remote_setup,
             push_mode=git_push_mode, repo_name=repo_name, repo_visibility=repo_visibility,
             remote_url=remote_url, remote_name=remote_name, interactive=interactive, project_name=name)
-        update_git_policy(root, bootstrap_mode, git_status, push_mode)
+        update_git_policy(root, bootstrap_mode, git_status, push_mode, remote_name)
     except Exception:
         for path in reversed(created):
             path.unlink(missing_ok=True)
@@ -1201,8 +1213,9 @@ def main():
                 settings = config_path.read_text(encoding="utf-8")
                 remote = re.search(r"^Git Remote Setup: (Remote-pending|Remote-ready|Local-only)$", settings, re.M)
                 push = re.search(r"^Git Push Mode: (Remote-auto|Local-only)$", settings, re.M)
-                if remote and push:
-                    print(f"Git 远端状态：{remote[1]}；推送策略：{push[1]}")
+                name = re.search(r"^Git Remote Name: ([^\r\n]+)$", settings, re.M)
+                if remote and push and name:
+                    print(f"Git 远端状态：{remote[1]}；目标：{name[1]}；推送策略：{push[1]}")
             from lowcost_agent import configure
             try:
                 report = configure(args.target, args.low_cost_agent, install=True)

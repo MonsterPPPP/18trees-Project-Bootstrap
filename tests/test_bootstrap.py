@@ -137,7 +137,7 @@ class BootstrapTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 0, result.stderr)
                     agents = (project / "AGENTS.md").read_text(encoding="utf-8")
                     template = (app.BASE / "templates/AGENTS.md").read_text(encoding="utf-8")
-                    self.assertEqual(agents, template.replace("@@DEPLOYMENT_MODE@@", expected).replace("@@BOOTSTRAP_MODE@@", "Standard").replace("@@AGENT_DOC_MODE@@", "isolated").replace("@@GIT_REMOTE_SETUP@@", "Local-only").replace("@@GIT_PUSH_MODE@@", "Local-only"))
+                    self.assertEqual(agents, template.replace("@@DEPLOYMENT_MODE@@", expected).replace("@@BOOTSTRAP_MODE@@", "Standard").replace("@@AGENT_DOC_MODE@@", "isolated").replace("@@GIT_REMOTE_SETUP@@", "Local-only").replace("@@GIT_PUSH_MODE@@", "Local-only").replace("@@GIT_REMOTE_NAME@@", "none"))
                     self.assertIn(f"Deployment Mode: {expected}\n", agents)
                     self.assertNotIn("@@DEPLOYMENT_MODE@@", agents)
                     rules = (project / "docs/project/rules.md").read_text(encoding="utf-8")
