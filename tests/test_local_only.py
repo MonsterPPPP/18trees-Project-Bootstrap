@@ -33,7 +33,12 @@ def bundle(root):
 def isolated_agent_env(root):
     # CLI regression tests must not consume credentials or change machine choices.
     home = str(Path(root) / "synthetic-machine-home")
-    return dict(os.environ, HOME=home, USERPROFILE=home)
+    env = dict(os.environ, HOME=home, USERPROFILE=home)
+    try:
+        env["ARCHIFY_HOME"] = str(app.archify_cli())
+    except ValueError:
+        pass
+    return env
 
 
 def cli(root, *args):
@@ -45,6 +50,8 @@ def selected_install(*args, **kwargs):
     """Regression scenarios can override the safe repository-only defaults."""
     kwargs.setdefault("deployment_mode", "Local-first")
     kwargs.setdefault("agent_doc_mode", "isolated")
+    kwargs.setdefault("git_remote_setup", "local")
+    kwargs.setdefault("git_push_mode", "Local-only")
     return app.initialize(*args, **kwargs)
 
 

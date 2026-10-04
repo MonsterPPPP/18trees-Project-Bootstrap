@@ -16,6 +16,8 @@ def selected_install(*args, **kwargs):
     """Existing Standard tests simulate choices already confirmed in the Agent UI."""
     kwargs.setdefault("deployment_mode", "Local-first")
     kwargs.setdefault("agent_doc_mode", "isolated")
+    kwargs.setdefault("git_remote_setup", "local")
+    kwargs.setdefault("git_push_mode", "Local-only")
     return app.initialize(*args, **kwargs)
 
 
@@ -129,13 +131,13 @@ class BootstrapTests(unittest.TestCase):
                                      (["--deployment-mode", "Production-direct"], "Production-direct")):
                 with self.subTest(option=option):
                     project = Path(temp) / str(len(list(Path(temp).iterdir())))
-                    command = [sys.executable, "-X", "utf8", str(app.BASE / "bootstrap.py"), "init", str(project), "--bootstrap-mode", "Standard", "--agent-doc-mode", "isolated"]
+                    command = [sys.executable, "-X", "utf8", str(app.BASE / "bootstrap.py"), "init", str(project), "--name", "新项目", "--bootstrap-mode", "Standard", "--agent-doc-mode", "isolated"]
                     result = subprocess.run(command + option, input="", capture_output=True, text=True, encoding="utf-8",
                                             env=isolated_agent_env(temp))
                     self.assertEqual(result.returncode, 0, result.stderr)
                     agents = (project / "AGENTS.md").read_text(encoding="utf-8")
                     template = (app.BASE / "templates/AGENTS.md").read_text(encoding="utf-8")
-                    self.assertEqual(agents, template.replace("@@DEPLOYMENT_MODE@@", expected).replace("@@BOOTSTRAP_MODE@@", "Standard").replace("@@AGENT_DOC_MODE@@", "isolated"))
+                    self.assertEqual(agents, template.replace("@@DEPLOYMENT_MODE@@", expected).replace("@@BOOTSTRAP_MODE@@", "Standard").replace("@@AGENT_DOC_MODE@@", "isolated").replace("@@GIT_REMOTE_SETUP@@", "Local-only").replace("@@GIT_PUSH_MODE@@", "Local-only").replace("@@GIT_REMOTE_NAME@@", "none"))
                     self.assertIn(f"Deployment Mode: {expected}\n", agents)
                     self.assertNotIn("@@DEPLOYMENT_MODE@@", agents)
                     rules = (project / "docs/project/rules.md").read_text(encoding="utf-8")
@@ -160,7 +162,7 @@ class BootstrapTests(unittest.TestCase):
     def test_cli_uses_explicit_choices_without_terminal_prompts(self):
         with tempfile.TemporaryDirectory() as temp:
             project = Path(temp) / "standard"
-            with patch.object(sys, "argv", ["bootstrap.py", "init", str(project), "--bootstrap-mode", "Standard", "--agent-doc-mode", "isolated", "--deployment-mode", "Local-first"]), \
+            with patch.object(sys, "argv", ["bootstrap.py", "init", str(project), "--name", "Synthetic", "--bootstrap-mode", "Standard", "--agent-doc-mode", "isolated", "--deployment-mode", "Local-first", "--git-remote-setup", "local", "--git-push-mode", "Local-only"]), \
                     patch.object(sys.stdin, "isatty", return_value=True), \
                     patch("builtins.input", side_effect=AssertionError("Agent entry must not prompt")), patch("builtins.print"), \
                     patch.dict(os.environ, isolated_agent_env(temp)):

@@ -119,6 +119,14 @@ Strict Node Boundary：人明确「只修改 NODE:X」时，X 是硬边界，**�
 仅路径移动也不触发地图同步：Agent 定位时核实旧线索，下次有语义同步时一并修正 metadata。
 发现陈旧线索可记录任务结论，不把 HTML 改成真相源。
 
+**初始化 · Git 远端与推送策略**
+
+初始化先检查目标目录的 Git 仓库与全部 remote；目标不在已有工作区中时可执行本地 `git init`，不得暂存、提交或推送。
+Agent 分别询问远端设置（选择已有 remote、用 GitHub CLI 创建、提供仓库 URL、或仅保留本地）和推送策略（`Remote-auto` / `Local-only`），不得把“存在 remote”当作推送授权。
+已有 remote 必须展示名称和 URL；多个 remote 要由用户选择，不能覆盖或删除未选 remote。创建 GitHub 仓库默认 private；展示 GitHub 账户、仓库名和可见性后再创建，不传 `--push`。项目名默认使用用户给定值；缺少项目名或仓库名时询问用户，Agent 可给出仓库 slug 建议供选择或修改。
+GitHub CLI 缺失/未认证，或用户尚未提供 URL 时，本地安装仍可完成，但写入 `Git Remote Setup: Remote-pending` 并说明未完成；不推断 URL。`Remote-auto` 可独立记录，但远端可用前不得推送。配置成功写 `Remote-ready` 和所选 `Git Remote Name`；多 remote 时必须持久化用户所选名称。用户选本地写 `Local-only`，`Git Remote Name` 为 `none`。
+`Remote-auto` 仅表示开发任务经测试、独立 Review、Merge Queue 最终检查后由队列同步远端；不授权 Coding Agent 直接 push main，也不绕过人工合并约束。新仓库创建只添加 remote，首次推送必须经过 Gateway Flow。
+
 **Git Workflow（Gateway Flow）· 1. 基本原则**
 
 `main ← Merge Queue ← Review Gate ← Task Branch ← Coding Agent`。
@@ -272,17 +280,17 @@ REQUEST_CHANGES
 **Deployment 规范 · 1. 初始化时选择部署模式**
 
 初始化先只读识别目标项目是否已有生产部署目标。证据来自现有部署配置、发布文档或用户提供的生产 URL；示例链接、开发预览地址不算生产目标。
-没有生产目标时安全默认是 Local-first，不询问生产授权：开发任务仍按 Gateway Flow 测试、Review、合并并同步已配置的远端仓库，不直接 push main，也不发布生产。若仓库没有可用 remote，只能完成本地队列并明确报告远端未配置；不得猜 URL 或自行添加 remote。
+没有生产目标时安全默认是 Local-first，不询问生产授权：开发任务仍按 Gateway Flow 测试、Review、合并；是否同步远端由 Git Push Mode 决定，不直接 push main，也不发布生产。若仓库没有可用 remote，只能完成本地队列并明确报告远端未配置；不得猜 URL 或未经初始化选择自行添加 remote。
 发现生产目标时，向用户展示已识别的 URL、平台和部署入口，再询问是否授权 Production-direct 长期部署；目标缺少平台、流水线或验收入口时，只列出缺项，不猜测或创建生产资源。
 Agent Document Mode 默认 isolated；不主动询问 indexed。只有人提出希望索引进入 Git 时，才展示精确路径并确认含糊的授权范围。
 Agent 代用户初始化不得自行选择 Production-direct 或 indexed；用户无回复时分别保持 Local-first 与 isolated。安装本身不执行部署。
 
 | 模式 | 流程与授权 |
 |---|---|
-| Local-first（无生产目标时的默认值） | Agent 完成修改 → 测试 → 独立 Review → Merge Queue 合并并同步已配置的远端仓库；remote 不可用时说明阻碍。有本地预览入口时可提供查看。不得自动进入 Production；只有用户明确提出单次生产发布后才继续 |
+| Local-first（无生产目标时的默认值） | Agent 完成修改 → 测试 → 独立 Review → Merge Queue 合并；Remote-auto 时同步已配置的远端，Local-only 时不自动推送；remote 不可用时说明阻碍。有本地预览入口时可提供查看。不得自动进入 Production；只有用户明确提出单次生产发布后才继续 |
 | Production-direct | 目标已识别且用户主动授权后，Agent 完成修改 → 测试与 Review / Merge → 对待发布版本执行 Deployment Check → 全部通过后使用已配置入口部署 Production；后续无需重复询问 |
 
-Local-first 适用于没有生产目标、UI / UX 调整、产品功能验证、尚需人工确认效果的任务和生产风险较高的项目。它不阻止任务经 Gateway Flow 同步远端仓库。
+Local-first 适用于没有生产目标、UI / UX 调整、产品功能验证、尚需人工确认效果的任务和生产风险较高的项目。它不决定 Git 推送；推送仍由 Git Push Mode 配置。
 Production-direct 是**用户对已识别目标授予的一次长期授权，替代每次部署前的人工确认**，不代表跳过检查。仅提供 URL 不等于授权。
 Local-first 的单次生产部署请求只授权该次部署，不自动切换长期模式。
 
@@ -343,7 +351,7 @@ Bootstrap 内容默认 Local-only；无生产目标时 Deployment Mode 默认 Lo
 Standard 仅在人另外明确要求完整规范随项目提交时使用；允许索引不自动切换 Standard。
 CLI 的首次 init 缺少低权限选项时使用 Local-first / isolated；CLI 不替宿主识别生产目标或确认授权。Agent 只有获得明确授权后才能传 Production-direct、indexed 或 Standard。
 重复初始化保留已安装模式和本地编辑，不承担升级；模式变更须由人显式提出。
-Local-only 须位于已有 Git 工作区根目录，不擅自 git init。Standard 保留原来的无覆盖文件布局。
+Local-only 与 Standard 均须位于 Git 工作区根目录；目标目录不是其他仓库的子目录时，初始化会执行本地 git init。Standard 保留原来的无覆盖文件布局。
 
 | 内容 | Local-only | Standard |
 |---|---|---|

@@ -221,11 +221,11 @@ REQUEST_CHANGES
 
 在目标项目的 Coding Agent 对话框里发：
 
-> 请根据这个仓库，在当前项目初始化 Project Bootstrap：`https://github.com/MonsterPPPP/18trees-Project-Bootstrap`。先检查现有规则和生产部署配置；没有生产目标就按默认流程同步远端仓库，不要自动部署生产。需要修改原 Agent 文档或配置生产发布时再让我确认。完成独立验收后告诉我怎么使用。
+> 请根据这个仓库，在当前项目初始化 Project Bootstrap：`https://github.com/MonsterPPPP/18trees-Project-Bootstrap`。先检查现有规则和生产部署配置；初始化时分别询问 Git 远端设置和推送策略，不要暂存或提交。没有生产目标时不部署生产；需要修改原 Agent 文档或配置生产发布时再让我确认。完成独立验收后告诉我怎么使用。
 
 Agent 会读 [INSTALL.md](INSTALL.md)，先识别生产目标和现有规则：
 
-没有生产目标时默认 Local-first，完成测试、Review 和队列合并后同步已配置的远端仓库；没有 remote 时会报告缺失，不会猜测地址。发现生产目标时会展示 URL、平台与部署入口，再询问是否授予 Production-direct 长期授权。Agent 文档默认 isolated；只有要添加可提交索引时才询问授权。旧规则冲突时终止安装并列明原因；无冲突才准备依赖、安装并生成地图。
+初始化会检查 Git 并分别询问远端设置与推送策略；没有 Git 时只初始化本地仓库，不暂存或提交。可选择已有 remote、用 GitHub CLI 创建、提供 URL 或暂留本地；Remote-auto 仅经测试、Review 和 Merge Queue 后推送，Local-only 不自动推送。GitHub CLI 不可用时可先完成本地安装，远端标记为待补，不猜地址。没有生产目标时默认 Local-first，不自动部署；发现生产目标时展示 URL、平台与部署入口，再询问是否授予 Production-direct 长期授权。Agent 文档默认 isolated；只有要添加可提交索引时才询问授权。旧规则冲突时终止安装并列明原因；无冲突才准备依赖、安装并生成地图。
 技术检查后自动启动独立子 Agent 验证加载与流程，PASS 后才报告完成；安装本身不发布生产。
 
 ### 前置条件

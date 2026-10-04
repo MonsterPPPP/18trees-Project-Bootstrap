@@ -24,6 +24,11 @@ init 仅在完整 Bootstrap 源仓库执行；目标内副本支持 map、valida
 普通目标正文默认 Local-only；无生产目标时 CLI 默认 Local-first，文档接入默认 isolated。Production-direct、indexed 与 Standard 必须由宿主 Agent 在取得明确授权后传入。
 CLI 不识别生产 URL、不调用选择工具，也不证明授权来源；安装 Agent 负责目标发现与冲突检查。
 
+初始化会检测目标 Git 根目录与现有 remote；普通目标不在其他仓库内时没有 Git 就执行 `git init`。
+Agent 必须分别传入/询问 `--git-remote-setup` 与 `--git-push-mode`；交互 CLI 也会逐项询问。推送选择默认 Local-only，已有 remote 不自动构成推送授权。
+远端可选 existing、create（GitHub CLI）、url、local；多 remote 时必须指定名称。新仓库默认 private，创建只加 remote，不暂存、提交或 push。
+GitHub CLI 不可用/未认证且没有 URL 时仍允许本地安装，配置记为 Remote-pending；Remote-auto 在远端可用前暂停同步。项目 AGENTS.md 记录 Git Remote Setup、Git Push Mode 与获准使用的 Git Remote Name，部署模式仍单独配置。多个 remote 时必须记录用户选中的名称。缺失项目名时交互询问；非交互 CLI 要求 `--name`。
+
 Local-only 正文安装在 .project-bootstrap/。isolated 使用两个本地薄入口；indexed 向存在的 AGENTS.md、CLAUDE.md、.claude/CLAUDE.md 追加条件索引，缺对应核心文档则使用薄入口。
 核心文档不被整体替换；tracked 核心文档仅索引可见可提交，其他产物仍排除。覆盖入口冲突先停止，不擅改其他规则。
 索引只追加到 UTF-8（可带 BOM）文档，原字节和换行保留；其他编码先停止交用户决定，不混写或自动转换。
