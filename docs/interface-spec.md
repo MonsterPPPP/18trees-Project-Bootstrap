@@ -122,10 +122,31 @@ Strict Node Boundary：人明确「只修改 NODE:X」时，X 是硬边界，**�
 **初始化 · Git 远端与推送策略**
 
 初始化先检查目标目录的 Git 仓库与全部 remote；目标不在已有工作区中时可执行本地 `git init`，不得暂存、提交或推送。
-Agent 分别询问远端设置（选择已有 remote、用 GitHub CLI 创建、提供仓库 URL、或仅保留本地）和推送策略（`Remote-auto` / `Local-only`），不得把“存在 remote”当作推送授权。
+旧兼容流程分别选择远端设置（选择已有 remote、用 GitHub CLI 创建、提供仓库 URL、或仅保留本地）和推送策略（`Remote-auto` / `Local-only`），不得把“存在 remote”当作推送授权。
 已有 remote 必须展示名称和 URL；多个 remote 要由用户选择，不能覆盖或删除未选 remote。创建 GitHub 仓库默认 private；展示 GitHub 账户、仓库名和可见性后再创建，不传 `--push`。项目名默认使用用户给定值；缺少项目名或仓库名时询问用户，Agent 可给出仓库 slug 建议供选择或修改。
 GitHub CLI 缺失/未认证，或用户尚未提供 URL 时，本地安装仍可完成，但写入 `Git Remote Setup: Remote-pending` 并说明未完成；不推断 URL。`Remote-auto` 可独立记录，但远端可用前不得推送。配置成功写 `Remote-ready` 和所选 `Git Remote Name`；多 remote 时必须持久化用户所选名称。用户选本地写 `Local-only`，`Git Remote Name` 为 `none`。
 `Remote-auto` 仅表示开发任务经测试、独立 Review、Merge Queue 最终检查后由队列同步远端；不授权 Coding Agent 直接 push main，也不绕过人工合并约束。新仓库创建只添加 remote，首次推送必须经过 Gateway Flow。
+
+**初始化 · 完整 Git 交付方式与标准回执**
+
+新版安装分别选择远端目标与 `Git Completion Mode: Auto|Manual`，由聊天传给 `--git-completion-mode`。
+Auto 授权本任务提交、推送选中远端任务分支、创建/合并 PR、同步本地主分支和清理；Manual 同样提交和开 PR，只等待人最终合并。
+未回答保存 Unselected，不授予完整交付；旧 Git Push Mode 记录与参数继续按旧授权解释，不能因升级扩大权限。
+新模式选择不再额外询问旧推送开关；明确仅本地时保持 Local-only，选择远端时记录 Remote-auto，远端未就绪也可保存意向。
+已有选择不重复问；模式显式变更由用户指示。更严格原规则在写入前核对，并在回执说明有效限制，不通过关键词自动判定自然语言授权。
+任务实现与测试完成后只提交自己的改动到任务分支，Review 绑定该 head。Auto 的最终完成条件是交付至所选终点，
+不能在 PASS 后再把提交/推送/合并操作交还用户；Manual 或有效 require human merge 则停在 WAIT_FOR_HUMAN_MERGE。
+远端可用时通过托管平台 PR 合并，主 Agent 担任协调队列推进现有检查，不安装队列服务。实际主分支沿用项目配置，不能猜测。
+远端或 PR 权限不可用时 Auto 仍执行本地队列检查与合并，安全同步干净工作树，报告“本地已完成，远端未同步”。
+远端待交付保留任务分支、提交和阻塞信息；恢复后重新获取远端主分支并检查，再从保留分支交付 PR，不直接 push main。
+Manual 无远端保留本地任务提交，不合并。任何模式不得覆盖人的未提交改动、强制推送、绕过评审或扩大生产权限。
+
+初始化统一输出“配置项 / 实际状态 / 后续行为”回执，并保存既有 installation-check.md。
+内容包含布局、文档模式、Git 模式与远端、Review/队列、部署、DSH 状态、技术检查和独立验收、地图/规则入口。
+文件落地与独立验收是不同阶段；技术通过且真实独立 PASS 才报告基础初始化成功，可选能力失败单独列出。
+init 生成待验收回执；安装 Agent 获得独立原始结果和任务引用后用 report-install 更新，并在聊天发送同样清单。
+工具只能记录外部验收及安装快照，不证明独立身份或代签。快照变化使旧验收失效，重复未变化的安装可复用原证据。
+回执保留区块外安装记录；服务端保护、远端权限、主分支和原规则限制由安装 Agent 如实补充，不用“已登记”冒充“已验证可用”。
 
 **Git Workflow（Gateway Flow）· 1. 基本原则**
 
@@ -179,6 +200,7 @@ Reviewer 只读，不改代码、不解决冲突、不提交、不合并，只�
 禁止自动合并，等待人执行最终 Merge；可在任务指令或项目长期规则中指定该开关。
 开关只改变最终合并责任，不免除独立评审、测试、最新 main 验证或串行合并要求。
 人类未指定该开关时，不把重复 Review / Merge 确认交还给人。
+以上默认规则用于旧授权；新版有 Git Completion Mode 时以其明确终点为准。Manual 等人合并，Unselected 等待选择，不因默认自动 Merge 而扩大权限。
 
 **6. 并行 Agent 与 Merge Queue**
 

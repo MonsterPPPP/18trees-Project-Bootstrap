@@ -19,7 +19,7 @@
 **Deployment Check · 项目自定义**
 
 部署模式只读取根目录 `AGENTS.md` 的 `Deployment Mode`，不在这里维护第二份模式值。
-初始化时先只读发现项目已有部署目标与入口。若发现 Production URL / 平台配置，Agent 根据项目现状填写下表并向人确认缺失项；没有目标则保持“无 Production 目标”，默认只交付至远端仓库。尚未填写不等于检查通过。Bootstrap 不提供假成功命令或统一 CI/CD。
+初始化时先只读发现项目已有部署目标与入口。若发现 Production URL / 平台配置，Agent 根据项目现状填写下表并向人确认缺失项；没有目标则保持“无 Production 目标”，按 Git Completion Mode 与 Git Push Mode 交付本地或远端，Manual 等人合并。尚未填写不等于检查通过。Bootstrap 不提供假成功命令或统一 CI/CD。
 
 | 项目 | 本项目目标、命令 / 入口与通过标准 |
 |---|---|

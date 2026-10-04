@@ -173,3 +173,13 @@ exclude 原字节和已评审任务提交均保留，项目只剩 `.git` 与 `lo
 
 本地复现：`python bootstrap.py agent setup --cwd <目标>`；真实任务通过 `agent run --cwd <目标> --file -`。
 完整说明见 [低成本能力](low-cost-agent.md)。地图可用 `python bootstrap.py map docs/bootstrap.manifest.json --output artifacts/bootstrap-map.html` 重新生成；本机会话与收据均留在机器/忽略目录，不入 Git。
+
+**初始化回执与完整 Git 交付方式（2026-10-04）**
+
+- 55 项工具链测试通过，包括两种布局、首次选择/复用、指定 remote、旧授权不扩大、CRLF 保存、回执保留安装记录、独立证据/引用与快照失效、目标内可运行 report-install。命令：`python -m unittest discover -s tests -v`；使用项目外准备的持久 Python 环境与 requirements.txt，系统默认 Python 不具备依赖。
+- 合成 Local-only/Auto 与 Standard/Manual 初始化实际退出码 0。真实本机 DSH 轻量握手复用成功，版本 DSH 0.1.2-rc.1 / acpx 0.19.4 / Node v24.12.0；没有重复安装或再次付费烟测。init 的回执先保持 PENDING，真实独立 Installation Verifier 沿实际入口读取规则、检查两项目 manifest/map 并返回 PASS，记录原始结果及任务引用后才更新成功回执。
+- 原生 Git 技术演练：Auto 合成任务提交在独立干净 main 工作树合并，原工作树的合成无关改动保留；Manual 的合成提交留在任务分支，main 未合并。此演练不替代开发任务独立 Review，也不证明宿主 Agent 在所有客户端都能自主交付；完整 PR 交付以本次开发 PR 的实际记录为准。
+- 宿主执行提交、PR、队列合并和同步；初始化脚本仅记录选择、分发规则和生成回执。远端登记不表示推送或 PR 权限已实测；无 remote 的两项目没有虚构远端成功。服务端保护、托管队列、生产与其他 Git 托管平台未配置或实测。
+- manifest 已同步回执与 Git 交付语义；地图各页通过 archify 9 项 showcase 检查、零警告。Edge 离线检查 1440×900、1600×1000、1920×1080、2048×1320，无外部请求、脚本错误或横向溢出；人工查看最小/最大视口明暗截图。完整四层索引按既有规范允许纵向滚动。
+
+操作入口见 [安装 Agent 流程](../INSTALL.md)；用户在聊天中选择 Auto / Manual、启用 / 跳过，安装结束查看 installation-check.md 的统一配置清单与后续行为。

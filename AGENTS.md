@@ -36,6 +36,9 @@ Reviewer 按 STS 五项审查，只报告不改代码；证据足够后不额外
 
 Deployment Mode: Local-first
 
+初始化配置回执与 Git Auto/Manual 规范见 docs/interface-spec.md；本仓库源码不运行 init。
+本仓库当前既有 Gateway Flow 与用户已授权的提交、推送、合并继续有效；不能在 Review PASS 后无故停在未交付状态。
+
 本仓库部署规则见 `docs/interface-spec.md` 的《Deployment 规范》。开发验证后提供本地文档或地图入口，
 不自行发布 Production。本仓库只交付工具与规范，尚无生产部署目标；明确要求生产发布时，
 须先定义必要测试、Build、阻断检查和现有部署要求，不把“测试通过”当作已完成生产部署。

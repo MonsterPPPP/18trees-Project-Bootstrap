@@ -6,11 +6,11 @@ Bootstrap 正文默认 Local-only；无生产目标时默认 Local-first，无�
 若目标目录就是当前 Bootstrap 源仓库本身，不对它再次运行 `init`。源仓库已使用 Standard 规则；按其 AGENTS.md 和 Gateway Flow 修改 Bootstrap 自身，并在任务结束时检查是否需要同步项目地图。
 
 1. **只读识别目标与规则入口。** 记录目标 Git 根目录、status、工作树和 staged diff，读取原核心/覆盖/嵌套规则及其引用流程。识别已有生产目标：以项目部署配置、发布说明或用户提供的生产 URL 为证据；示例链接、开发预览地址不算目标。默认不检查或展示索引候选路径；仅在人要求跟踪索引时识别并展示精确修改路径。
-2. **分别确认 Git 选择。** 检查并展示已有 remote 名称与 URL；询问使用哪个现有 remote、通过 GitHub CLI 创建、由用户提供 URL，或仅保留本地。若无 Git 工作区，初始化本地 Git，但不暂存、提交。再单独询问 `Remote-auto` 或 `Local-only` 推送策略；前者只在测试、独立 Review 与 Merge Queue 检查通过后同步远端。若 gh 不可用/未认证，可先完成本地安装，并记录远端待补；用户提供 URL 或完成 gh 认证后再配置。创建仓库默认 private，创建前展示 GitHub 账户、仓库名和可见性，绝不首次直接推送。
+2. **确认远端与完整交付方式。** 展示已有 remote 名称与 URL，选择现有 remote、通过 GitHub CLI 创建、提供 URL，或仅保留本地。首次询问 Auto / Manual：Auto 自动完成任务提交、Review、队列检查、推送任务分支、创建并合并 PR、同步本地主分支和清理已交付分支；Manual 自动提交、Review、推送任务分支并开 PR，最终由人合并。明确回答后传 `--git-completion-mode`，不再另问旧推送开关；保存后复用，不重复问。无回答记 Unselected，不授予完整交付权限。已有适用授权可直接记录；旧安装未显式选择新模式时保留旧授权。仅本地不推送；gh 缺失或未认证仍可先安装，记录远端待补。新 Git 初始化和远端创建不暂存、提交或上传已有文件；创建默认 private，先展示账户、名称与可见性。
 3. **只询问其他需要授权的选择。** 没有已配置的生产目标时，采用 Local-first，不自动发布生产；无需再问部署模式。有生产目标时，展示检测到的 URL、平台和部署入口，再询问是否授权 Production-direct 长期自动部署。isolated 是默认值；仅当人要求 indexed 且授权意图不清楚时，展示精确路径并确认。无回复不授予 Production-direct 或 indexed；已完成安装沿用适用的记录。
 4. **冲突检查，不兼容就终止本次安装。** 核对 Git/Review/Merge、部署目标与流水线、语义边界、文件修改范围及子 Agent 限制；逐项列出原规则位置、Bootstrap 要求、冲突原因和待决策事项。此时目标项目零写入；用户决定后重新检查。允许索引不授权改写旧规则；更严格但兼容要求保留，例如 require human merge。
 5. **检查通过后安装与理解项目。** 源码和环境准备在目标项目之外，复用已有 Python 3.12+、Node.js 22+、jsonschema 和 archify，不改业务依赖或全局设置。indexed 先按 Gateway Flow 建任务分支。无显式部署选项时传 Local-first，无显式文档选项时传 isolated；Production-direct 和 indexed 只在获得明确授权后传入。项目名使用用户给出的名称；缺失时询问。缺少仓库名时展示可选 slug 建议，允许用户选择或输入。读取规范与 skill，按代码证据整理四层语义、manifest、地图和必要测试/部署入口。若存在生产目标，填充规则模板里的 URL、平台、发布入口、检查和凭据引用；向用户确认缺项，绝不记录秘密值或虚构配置。无业务实现就保持 planned。将选择、已读规则、兼容决定、来源 URL/commit、工具路径和技术自查结果写入安装文档（Local-only 为 docs/installation-check.md；Standard 为 docs/project/installation-check.md）。
-6. **技术自查 + 独立子 Agent 验收。** 校验安装和地图、原任务改动、索引差异与本地隔离。随后自动启动独立干净上下文的 Installation Verifier，只给目标目录、生效模式及其来源（明确授权或安全默认）和验收任务，不给“已通过”的结论。它只读检查并返回 PASS / REQUEST_CHANGES。缺能力、启动失败或未 PASS 只能报告“文件已落地，初始化验收未完成”；PASS 后记录其原始结果及任务引用，再交付使用说明与地图。仅有测试通过或模型口头自认不算验收完成。
+6. **技术自查 + 独立验收 + 完成回执。** 校验安装和地图、原任务改动、索引差异与本地隔离。自动启动独立干净上下文的 Installation Verifier，只给目标、生效选择与验收任务，不给“已通过”结论；它只读返回 PASS / REQUEST_CHANGES。保存它的原始结果及任务引用，执行下方 report-install，最后在聊天发送同样的标准回执并提供文件、地图绝对路径。技术通过且独立 PASS 才报告基础初始化成功；缺能力、失败或未 PASS 报告“文件已落地，初始化验收未完成”。低成本 Agent、远端能力未就绪要单独说明，不把基础成功写成所有能力成功。
 
 Local-first 的常规交付是否自动同步由初始化时记录的 Git Push Mode 决定；Remote-auto 经 Gateway Flow 同步，Local-only 留在本地。remote 缺失时不得猜地址或推送。安装本身不发布生产。
 若索引文件混有人的未提交修改，只能分离自己的区块按 Gateway Flow 提交；无法分离则保留待处理，不能一并暂存。
@@ -32,10 +32,27 @@ Standard 只有用户另外明确要求完整规范入库时才选；保持原�
 **执行命令（仅供 Agent；替换尖括号中的绝对路径）**
 
 ```text
-<外部环境Python> <Bootstrap源码>/bootstrap.py init <目标项目> --name <产品名称> --archify <外部archify目录> [--deployment-mode Local-first|Production-direct] [--agent-doc-mode isolated|indexed] [--git-remote-setup existing|create|url|local] [--git-push-mode Remote-auto|Local-only] [--remote-name <名称>] [--remote-url <URL>] [--repo-name <仓库名>] [--repo-visibility private|public]
+<外部环境Python> <Bootstrap源码>/bootstrap.py init <目标项目> --name <产品名称> --archify <外部archify目录> [--deployment-mode Local-first|Production-direct] [--agent-doc-mode isolated|indexed] [--git-remote-setup existing|create|url|local] [--git-completion-mode Auto|Manual] [--remote-name <名称>] [--remote-url <URL>] [--repo-name <仓库名>] [--repo-visibility private|public]
 <外部环境Python> <目标项目>/.project-bootstrap/bootstrap.py map <目标项目>/.project-bootstrap/project.manifest.json --output <目标项目>/.project-bootstrap/docs/map.html --archify <外部archify目录>
 <外部环境Python> <目标项目>/.project-bootstrap/bootstrap.py verify-install <目标项目>
+<外部环境Python> <工具目录>/bootstrap.py report-install <目标项目> --verifier-report <独立验收原始结果文件> --verifier-ref <Agent或任务引用>
 ```
+
+`init` 可传 `--git-completion-mode Auto|Manual`，不能同时传旧 `--git-push-mode`。
+report-install 不调用模型、不自行产生 PASS；验收文件必须来自真实独立任务，安装 Agent 不得代签。
+不传验收文件只展示当前技术状态与已绑定当前安装快照的旧验收；配置、入口或地图变化会使旧验收失效。
+回执写入既有 installation-check.md 的标记区块，保留区块外的授权来源、规则冲突、来源 commit 和说明。
+
+**面向用户的标准回执**
+
+开头写“Bootstrap 基础初始化成功”或“文件已落地，初始化验收未完成”。随后逐项列出：
+规则/文档布局与 Git 可见范围、Git Auto/Manual 和选中远端、独立 Review 与队列流程、部署模式、
+低成本 Agent 的已验证可用/已跳过/不可用/待选择、技术检查、独立验收证据及查看入口。
+每项写实际状态和以后会发生什么；不要只报配置名或 JSON。远端已登记不代表有推送/PR/合并权限，
+DSH 状态仅引用本次 setup 结果或注明上次验证，不输出凭据、个人入口路径和机器日志。
+安装 Agent 必须补充项目实际主分支、原规则导致的有效限制、服务端保护/CI/队列实际状态及未验证项。
+Auto 不在 Review PASS 后结束：主 Agent 继续推进；远端不可用时走完本地队列合并和安全工作树同步，
+提示“本地已完成，远端未同步”，保留待远端交付分支及续跑入口。Manual 无远端保留本地提交和分支。
 
 用 `python -m venv <外部缓存>/venv` 准备隔离环境；Windows 的 Python 在 `venv/Scripts/python.exe`，
 其他平台在 `venv/bin/python`。用该 Python 执行 `-m pip install -r <Bootstrap源码>/requirements.txt`。
@@ -52,7 +69,7 @@ indexed 只向已识别核心文档追加带标记的条件索引；该区块可
 原正文、编码、换行及未提交内容保留，损坏/重复标记、链接、未授权跟踪入口不能被覆盖。
 当前会话必须主动读取；新安装的独立子 Agent 必须沿实际入口验证，不把“文件存在”等同“流程已加载”。
 
-每次任务由 Agent 执行 verify-install，刷新继承的排除规则。新增 worktree 后按相同流程安装，
+每次任务 Local-only 由 Agent 执行 verify-install 刷新继承排除；Standard 用 validate 核对 manifest/map。新增 worktree 后按相同流程安装，
 规则、模式和地图不自动跨工作区复制；已有长期授权可由 Agent 在核实适用范围后沿用，无需重复问人。
 Git 条件配置只影响安装所在的工作区；共享 info/exclude、全局配置和 `.gitignore` 均不改。
 不同 worktree 可以分别安装，但同一仓库的安装/卸载串行执行，避免同时写共享本地配置。
