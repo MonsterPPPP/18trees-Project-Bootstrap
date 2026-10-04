@@ -16,6 +16,18 @@ Local-first 的常规交付是通过 Gateway Flow 合并并同步已配置的远
 Standard 只有用户另外明确要求完整规范入库时才选；保持原无覆盖布局，原文件不同仍报冲突，不能强行接管。
 旧版安装不能静默升级；要改变入口方式，先备份本地规则，经清理确认后卸载再安装。v2 原本地安装仍可核对和卸载。
 
+**可选低成本子 Agent · 与现有初始化衔接**
+
+冲突检查通过后，用 `python <源码>/bootstrap.py agent setup --cwd <目标>` 读取机器选择。
+尚未配置且没有明确选择记录时，在 Agent 对话框询问“是否启用低成本 DSH 子 Agent？”，选启用或跳过；
+已回答则复用记录，不重复询问。本会话已授权时不再询问。无回复不启用，常规 Bootstrap 继续。
+把明确选择传给现有 init 的 `--low-cost-agent enable|skip`；已有选择时不传，工具读取机器记录。
+启用后 Agent 自动复用/补装 acpx、解析真实 DSH 入口、握手及小额烟测；机器配置与项目规则分开。
+缺认证、启动失败或权限不足时如实保留 unavailable 和续跑入口，主 Agent 继续无关工作。
+不要输出凭据或原始配置/日志；当前宿主不能调用 CLI 时标明能力缺失，不宣称已配置。
+技术自查中分别记录可选能力的 ready / skipped / unavailable，与 Bootstrap Installation Verifier 状态区分。
+操作、最小任务包、权限与官方 Skill 引用见 [可选能力说明](docs/low-cost-agent.md)。
+
 **执行命令（仅供 Agent；替换尖括号中的绝对路径）**
 
 ```text

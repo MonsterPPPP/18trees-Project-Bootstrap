@@ -1,0 +1,257 @@
+{
+  "$schema": "../schema/semantic-project.schema.json",
+  "schema_version": 1,
+  "nodes": [
+    {
+      "id": "NODE:bootstrap",
+      "layer": "product",
+      "name": "协作启动器",
+      "summary": "本图仅投影初始化与可选低成本子 Agent 链路，不表示业务实现。",
+      "status": "implemented",
+      "metadata": {
+        "references": [
+          {
+            "path": "docs/interface-spec.md",
+            "symbols": [],
+            "evidence": "本图仅投影初始化与可选低成本子 Agent 链路，不表示业务实现。"
+          }
+        ]
+      }
+    },
+    {
+      "id": "NODE:optional-init",
+      "layer": "feature",
+      "name": "选择与验证",
+      "summary": "安装 Agent 询问无记录的选择，跳过继续初始化；启用先握手再烟测，后续项目复用机器配置。",
+      "status": "implemented",
+      "metadata": {
+        "references": [
+          {
+            "path": "INSTALL.md",
+            "symbols": [],
+            "evidence": "安装 Agent 询问无记录的选择，跳过继续初始化；启用先握手再烟测，后续项目复用机器配置。"
+          }
+        ]
+      }
+    },
+    {
+      "id": "NODE:delegate",
+      "layer": "feature",
+      "name": "提交只读任务",
+      "summary": "主 Agent 按软性偏好交付最小上下文，检查完成状态并最终验收，失败接手。",
+      "status": "implemented",
+      "metadata": {
+        "references": [
+          {
+            "path": "docs/low-cost-agent.md",
+            "symbols": [],
+            "evidence": "主 Agent 按软性偏好交付最小上下文，检查完成状态并最终验收，失败接手。"
+          }
+        ]
+      }
+    },
+    {
+      "id": "NODE:bundle",
+      "layer": "capability",
+      "name": "规则与工具分发",
+      "summary": "两种布局分发同一规则、说明与 ACP 接入工具。",
+      "status": "implemented",
+      "metadata": {
+        "references": [
+          {
+            "path": "bootstrap.py",
+            "symbols": [
+              "install_files",
+              "local_sources",
+              "main"
+            ],
+            "evidence": "两种布局分发同一规则、说明与 ACP 接入工具。"
+          }
+        ]
+      }
+    },
+    {
+      "id": "NODE:availability",
+      "layer": "capability",
+      "name": "机器配置与可用性",
+      "summary": "机器选择、注册、版本及能力验证分开保存；正常复用不重复安装或付费烟测。",
+      "status": "implemented",
+      "metadata": {
+        "references": [
+          {
+            "path": "lowcost_agent.py",
+            "symbols": [
+              "configure",
+              "probe"
+            ],
+            "evidence": "机器选择、注册、版本及能力验证分开保存；正常复用不重复安装或付费烟测。"
+          }
+        ]
+      }
+    },
+    {
+      "id": "NODE:execution",
+      "layer": "capability",
+      "name": "受限调用与验收信号",
+      "summary": "调用 acpx 原生 CLI，拒绝权限请求，核对相关 prompt 响应、退出码与 stopReason。",
+      "status": "implemented",
+      "metadata": {
+        "references": [
+          {
+            "path": "lowcost_agent.py",
+            "symbols": [
+              "invoke",
+              "prompt_result",
+              "run"
+            ],
+            "evidence": "调用 acpx 原生 CLI，拒绝权限请求，核对相关 prompt 响应、退出码与 stopReason。"
+          }
+        ]
+      }
+    },
+    {
+      "id": "NODE:python-entry",
+      "layer": "system",
+      "name": "Bootstrap CLI",
+      "summary": "Python 入口与分发，不实现业务或通用编排框架。",
+      "status": "implemented",
+      "metadata": {
+        "references": [
+          {
+            "path": "bootstrap.py",
+            "symbols": [
+              "main"
+            ],
+            "evidence": "Python 入口与分发，不实现业务或通用编排框架。"
+          }
+        ]
+      }
+    },
+    {
+      "id": "NODE:acpx-runtime",
+      "layer": "system",
+      "name": "acpx 原生客户端",
+      "summary": "官方 acpx runtime 负责 ACP 握手、会话和关闭，CLI 负责真实任务；本工具不实现通信协议。",
+      "status": "implemented",
+      "metadata": {
+        "references": [
+          {
+            "path": "agent_probe.mjs",
+            "symbols": [],
+            "evidence": "官方 acpx runtime 负责 ACP 握手、会话和关闭，CLI 负责真实任务；本工具不实现通信协议。"
+          }
+        ]
+      }
+    },
+    {
+      "id": "NODE:native-dsh",
+      "layer": "system",
+      "name": "本机 DSH 原生 ACP",
+      "summary": "真实入口与认证复用，DSH 原生权限 patch 收窄默认权限；能力以握手为准。",
+      "status": "implemented",
+      "metadata": {
+        "references": [
+          {
+            "path": "lowcost_agent.py",
+            "symbols": [
+              "PATCH",
+              "npm_entry"
+            ],
+            "evidence": "真实入口与认证复用，DSH 原生权限 patch 收窄默认权限；能力以握手为准。"
+          }
+        ]
+      }
+    }
+  ],
+  "relationships": [
+    {
+      "from": "NODE:bootstrap",
+      "to": "NODE:optional-init",
+      "kind": "contains",
+      "label": "安装选择"
+    },
+    {
+      "from": "NODE:bootstrap",
+      "to": "NODE:delegate",
+      "kind": "contains",
+      "label": "可选使用"
+    },
+    {
+      "from": "NODE:optional-init",
+      "to": "NODE:bundle",
+      "kind": "contains",
+      "label": "分发项目入口"
+    },
+    {
+      "from": "NODE:optional-init",
+      "to": "NODE:availability",
+      "kind": "contains",
+      "label": "验证与复用"
+    },
+    {
+      "from": "NODE:delegate",
+      "to": "NODE:execution",
+      "kind": "contains",
+      "label": "提交与验收"
+    },
+    {
+      "from": "NODE:bundle",
+      "to": "NODE:python-entry",
+      "kind": "contains",
+      "label": "生成入口"
+    },
+    {
+      "from": "NODE:availability",
+      "to": "NODE:acpx-runtime",
+      "kind": "contains",
+      "label": "原生握手"
+    },
+    {
+      "from": "NODE:availability",
+      "to": "NODE:native-dsh",
+      "kind": "contains",
+      "label": "原生配置与认证"
+    },
+    {
+      "from": "NODE:execution",
+      "to": "NODE:acpx-runtime",
+      "kind": "contains",
+      "label": "标准 ACP 客户端"
+    },
+    {
+      "from": "NODE:execution",
+      "to": "NODE:native-dsh",
+      "kind": "contains",
+      "label": "原生受限执行"
+    },
+    {
+      "from": "NODE:optional-init",
+      "to": "NODE:delegate",
+      "kind": "precedes",
+      "label": "启用且可用后调用"
+    },
+    {
+      "from": "NODE:execution",
+      "to": "NODE:availability",
+      "kind": "depends_on",
+      "label": "检查当前机器可用性"
+    },
+    {
+      "from": "NODE:acpx-runtime",
+      "to": "NODE:native-dsh",
+      "kind": "data_flow",
+      "label": "ACP 请求、语义更新与结束状态"
+    }
+  ],
+  "workflows": [
+    {
+      "id": "FLOW:optional-agent",
+      "name": "启用与复用低成本 Agent",
+      "product": "NODE:bootstrap",
+      "steps": [
+        "NODE:optional-init",
+        "NODE:delegate"
+      ]
+    }
+  ]
+}
