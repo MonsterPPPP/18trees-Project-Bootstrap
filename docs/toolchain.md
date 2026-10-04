@@ -20,8 +20,9 @@ Workflow 是有序且不重复节点的一次用户旅程；有重试循环时�
 
 人通过项目 Agent 安装，执行流程见 [INSTALL.md](../INSTALL.md)。CLI 是 Agent 的内部工具。
 init 仅在完整 Bootstrap 源仓库执行；目标内副本支持 map、validate、verify-install 与 deinit。
-正文默认 Local-only；首次 init 必须显式传 --deployment-mode 和 --agent-doc-mode isolated|indexed，缺项零写入失败。
-选择工具由宿主 Agent 调用，CLI 不读取 terminal 默认值、不证明用户授权；Standard 仍须额外明确选择。
+目标就是当前 Bootstrap 源仓库时不运行 `init`；保留源仓库的 Standard 规则，直接按 Gateway Flow 维护规范、模板与工具链。
+普通目标正文默认 Local-only；无生产目标时 CLI 默认 Local-first，文档接入默认 isolated。Production-direct、indexed 与 Standard 必须由宿主 Agent 在取得明确授权后传入。
+CLI 不识别生产 URL、不调用选择工具，也不证明授权来源；安装 Agent 负责目标发现与冲突检查。
 
 Local-only 正文安装在 .project-bootstrap/。isolated 使用两个本地薄入口；indexed 向存在的 AGENTS.md、CLAUDE.md、.claude/CLAUDE.md 追加条件索引，缺对应核心文档则使用薄入口。
 核心文档不被整体替换；tracked 核心文档仅索引可见可提交，其他产物仍排除。覆盖入口冲突先停止，不擅改其他规则。

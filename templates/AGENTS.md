@@ -4,8 +4,8 @@ Bootstrap Mode: @@BOOTSTRAP_MODE@@
 
 Agent Document Mode: @@AGENT_DOC_MODE@@
 
-人类唯一操作入口是项目 Agent 对话框。首次安装必须唤起选择工具，让人确认 Deployment Mode 和 Agent Document Mode；
-推荐项、超时、无回复均不是授权。缺工具时逐项在对话中询问；已安装项目沿用有效记录，不重复询问。
+人类唯一操作入口是项目 Agent 对话框。首次安装先识别生产目标；没有生产目标时采用 Local-first，有目标时展示配置并询问是否授权 Production-direct。
+Agent Document Mode 默认 isolated；不主动询问 indexed。只有人提出要提交条件索引时，才检查并展示精确路径、确认不清楚的授权范围。超时或无回复不授予 Production-direct / indexed；已安装项目沿用有效记录。
 只有索引允许进入 Git：indexed 在用户同意的原核心文档追加条件索引，其余 Bootstrap 正文和产物留在本地。
 isolated 不修改原核心文档，使用本地薄入口。索引引用的本地文件不存在时忽略，不安装、不下载、不要求协作者补齐。
 Local-only 的配置入口为 `.project-bootstrap/AGENTS.md`；显式 Standard 使用根 AGENTS.md，并保留原无覆盖布局。
@@ -139,15 +139,15 @@ Deployment Mode: @@DEPLOYMENT_MODE@@
 
 此行是本项目部署模式的唯一配置源。每次任务主动读取，不重复询问当前模式，不擅自改变；
 用户可以显式修改此行。缺失或无效时不得推断生产授权，应说明配置问题。
-用户在初始化主动选择 Production-direct，即授予长期 Production Deployment 权限；
-一次长期授权替代每次部署前确认，后续任务检查全部通过即自动部署，不再次问是否部署。
-只有用户选择 Local-first 才使用该模式；未选择不得开始首次安装，不能推断任何部署授权。
+用户针对已识别目标主动选择 Production-direct，即授予长期 Production Deployment 权限；
+一次长期授权替代每次部署前确认，后续任务检查全部通过即自动部署，不再次问是否部署。仅有 URL 不等于授权。
+没有生产目标时默认 Local-first；不得推断任何部署授权。
 
 **Deployment · 按模式执行**
 
 | 模式 | 完成开发后的行为 |
 |---|---|
-| Local-first（只同步仓库，不自动部署生产） | 完成修改 → 执行测试 → 启动 Local / Preview → 提供可查看入口 → 停止；不得自行进入 Production，只有用户明确提出部署生产环境才继续 |
+| Local-first（无生产目标时的默认值） | 完成修改 → 执行测试 → 独立 Review → Merge Queue 合并并同步已配置的远端仓库；无 remote 时报告缺失。可提供已有 Local / Preview 入口。不得自行进入 Production，只有用户明确提出单次部署才继续 |
 | Production-direct | 完成修改 → 执行测试 → 执行项目 Deployment Check → 检查全部通过 → 自动部署 Production；长期授权不代表跳过检查 |
 
 Local-first 适用于 UI / UX 调整、产品功能验证、尚需人工确认效果或生产风险较高的项目。
@@ -155,8 +155,7 @@ Local-first 下单次明确生产请求不自动将模式改为 Production-direc
 
 **Deployment Check · 项目自定义位置**
 
-在 `docs/project/rules.md` 的「Deployment Check」填写本项目的必要测试、Build、阻断检查、
-已有部署要求与执行入口。两种模式进入 Production 前都必须满足这些检查，不强制统一 CI/CD。
+初始化发现生产目标时，在 `docs/project/rules.md` 的「Deployment Check」记录目标 URL、平台/项目、已有发布入口、必要测试、Build、阻断检查、已有部署要求与执行入口；未知项保持待确认，不编造或创建流水线。两种模式进入 Production 前都必须满足这些检查，不强制统一 CI/CD。
 未定义、未执行、结果缺失或有失败都不能视为通过；说明具体阻碍，不以询问是否部署代替修复。
 Local / Preview 启动方式与可查看入口也在该位置定义；启动后验证可访问再报告，不虚构成功。
 

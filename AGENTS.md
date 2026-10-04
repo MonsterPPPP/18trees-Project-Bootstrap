@@ -9,8 +9,10 @@
 
 Bootstrap Mode: Standard
 
+本仓库是 Bootstrap 源码仓库，不是待安装目标。禁止对仓库根目录再次运行 `bootstrap.py init`、复制一份 `.project-bootstrap/` 或追加自指索引；按本文件的 Gateway Flow 直接维护规范、模板、skill 与工具链。源码规则入口是 `docs/interface-spec.md`、`docs/toolchain.md` 和 `skills/project-interface/SKILL.md`。
+
 人类安装入口是目标项目 Agent 对话框；README 只提供对话示例，INSTALL.md 面向执行安装的 Agent。
-目标项目正文默认 Local-only；首次安装强制用选择工具确认部署模式和 isolated/indexed 文档方式。
+目标项目正文默认 Local-only；没有生产目标时默认 Local-first，文档入口默认 isolated。只有启用 Production-direct 或追加 indexed 条件索引时才请求对应的明确授权。
 只有用户授权的条件索引可入 Git，引用不存在就忽略；写入前冲突检查，写入后独立 Installation Verifier PASS 才完成。
 
 Engineering Protocol 同时使用 Ponytail + [Stop That Shit](https://github.com/lennney/stop-that-shit) + Semantic Boundary。

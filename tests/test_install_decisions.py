@@ -11,20 +11,28 @@ from test_local_only import git, repository, bundle
 
 
 class InstallDecisionTests(unittest.TestCase):
-    def test_missing_choices_fail_without_any_write(self):
+    def test_safe_defaults_and_explicit_privileges(self):
+        self.assertEqual(app.resolve_install_choices(None, None), ("Local-first", "isolated"))
+        self.assertEqual(app.resolve_install_choices("Production-direct", None), ("Production-direct", "isolated"))
+        self.assertEqual(app.resolve_install_choices(None, "indexed"), ("Local-first", "indexed"))
+        self.assertEqual(app.resolve_install_choices("Production-direct", "indexed"), ("Production-direct", "indexed"))
+        with self.assertRaisesRegex(ValueError, "无效安装选择"):
+            app.resolve_install_choices("unknown", None)
+
+    def test_first_install_uses_repository_only_and_isolated_without_prompts(self):
         with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp) / "choices"
+            root = Path(temp) / "safe-defaults"
             repository(root)
-            before = {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
-            for options in ({}, {"deployment_mode": "Local-first"}, {"agent_doc_mode": "indexed"}):
-                for storage in app.BOOTSTRAP_MODES:
-                    with self.subTest(options=options, storage=storage), self.assertRaisesRegex(ValueError, "必须由用户明确选择"):
-                        app.initialize(root, "合成", bootstrap_mode=storage, **options)
-                self.assertEqual(before, {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()})
-            result = subprocess.run([sys.executable, "-X", "utf8", str(app.BASE / "bootstrap.py"), "init", str(root)], capture_output=True)
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn("必须由用户明确选择", result.stderr.decode("utf-8"))
-            self.assertFalse(bundle(root).exists())
+            before = {name: (root / name).read_bytes() for name in ("AGENTS.md", "CLAUDE.md")}
+            result = subprocess.run([sys.executable, "-X", "utf8", str(app.BASE / "bootstrap.py"), "init", str(root),
+                                     "--name", "合成项目"], capture_output=True, text=True, encoding="utf-8")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            state = app.verify_install(root)
+            self.assertEqual(state["agent_doc_mode"], "isolated")
+            self.assertIn("Deployment Mode: Local-first", (bundle(root) / "AGENTS.md").read_text(encoding="utf-8"))
+            self.assertEqual(before, {name: (root / name).read_bytes() for name in before})
+            app.deinitialize(root, yes=True)
+            self.assertEqual(git(root, "status", "--porcelain"), b"")
 
     def test_all_four_choices_preserve_user_edits_and_only_expose_authorized_indexes(self):
         with tempfile.TemporaryDirectory() as temp:

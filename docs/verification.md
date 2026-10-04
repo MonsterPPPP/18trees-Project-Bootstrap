@@ -138,3 +138,16 @@ exclude 原字节和已评审任务提交均保留，项目只剩 `.git` 与 `lo
 此决定只取消本轮 Claude Code 行为验收要求，不将未完成的测试改记为通过，也不免除工具链测试、独立 Review 或合并前集成检查。
 
 下一步（1 分钟）：打开 README，将安装请求发给目标项目 Agent。
+
+**自举例外与顺滑初始化追加验收**
+
+2026-10-04：明确 Bootstrap 源仓库自举例外；普通目标无生产目标时默认 Local-first，有生产目标时只对已识别配置请求 Production-direct 授权；indexed 保持显式授权，isolated 为默认。远端同步仍服从 Gateway Flow，缺少 remote 时不推断地址。
+
+| 验收项 | 实际结果 |
+|---|---|
+| 默认选择 | CLI/初始化选择解析为 Local-first + isolated；显式 Production-direct / indexed 保持可用，未知值拒绝 |
+| 合成安装 | 无选择参数的合成 Git 仓库成功安装，根 AGENTS.md 与 CLAUDE.md 字节不变，安装记录为 isolated，卸载后 Git 工作区干净 |
+| 自举与部署规则 | 源仓库明确禁止对自身重复 init；Production URL、平台、发布入口、检查及 secret 引用写入项目规则，不记录秘密值或创建流水线 |
+| 工具链回归 | `python -m unittest discover -s tests -v`：30/30 通过；Python 3.14.7、Node.js 24.12.0、jsonschema 4.26.0、archify 2.15.0 |
+
+这是规范与 CLI 默认值的行为验收；未测试任何真实生产目标、托管 Merge Queue 或远端分支保护。本仓库没有自己的非合成 project manifest，因此本次不生成产品地图。

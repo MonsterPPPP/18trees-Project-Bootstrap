@@ -451,9 +451,13 @@ def plan_entries(root, mode):
             "indexed_entries": indexed, "reused_entries": []}
 
 
-def require_install_choices(deployment_mode, agent_doc_mode):
+def resolve_install_choices(deployment_mode, agent_doc_mode):
+    """Use non-authorizing defaults; elevated deployment and tracked indexing stay opt-in."""
+    deployment_mode = deployment_mode or "Local-first"
+    agent_doc_mode = agent_doc_mode or "isolated"
     if deployment_mode not in DEPLOYMENT_MODES or agent_doc_mode not in AGENT_DOC_MODES:
-        raise ValueError("首次安装必须由用户明确选择 --deployment-mode 和 --agent-doc-mode；请 Agent 唤起选择工具，未写入文件")
+        raise ValueError("无效安装选择：请指定支持的部署模式和文档模式")
+    return deployment_mode, agent_doc_mode
 
 
 def git_output(root, *args, optional=False):
@@ -636,8 +640,7 @@ def initialize_local(root, name, explicit, deployment_mode, agent_doc_mode):
             raise ValueError("初始化冲突：不能通过 init 改变部署模式")
         verify_install(root)
         return 0
-    require_install_choices(deployment_mode, agent_doc_mode)
-    mode = deployment_mode
+    mode, agent_doc_mode = resolve_install_choices(deployment_mode, agent_doc_mode)
     state = plan_entries(root, agent_doc_mode)
     check_local_paths(root, state)
     blocks = entry_blocks(state)
@@ -766,7 +769,7 @@ def initialize(target, name, explicit=None, deployment_mode=None, interactive=Fa
     if (root / ".bootstrap/bootstrap.py").is_file() and saved and saved_doc:
         deployment_mode = deployment_mode or saved[1]
         agent_doc_mode = agent_doc_mode or saved_doc[1]
-    require_install_choices(deployment_mode, agent_doc_mode)
+    deployment_mode, agent_doc_mode = resolve_install_choices(deployment_mode, agent_doc_mode)
     manifest = validate_manifest(starter(name))
     files = {relative: source.read_bytes() for relative, source in install_files().items()}
     files["AGENTS.md"] = files["AGENTS.md"].replace(b"@@DEPLOYMENT_MODE@@", deployment_mode.encode("utf-8"))
@@ -812,9 +815,9 @@ def main():
     init.add_argument("--name", default="新项目")
     init.add_argument("--archify", help="外部 archify skill 目录或 bin/archify.mjs 路径")
     init.add_argument("--deployment-mode", choices=DEPLOYMENT_MODES,
-                      help="首次安装必选：Local-first 只同步仓库；Production-direct 检查通过后长期自动部署生产")
+                      help="默认 Local-first：经 Review 与队列合并后同步仓库，不自动上生产；Production-direct 需用户明确授权")
     init.add_argument("--agent-doc-mode", choices=AGENT_DOC_MODES,
-                      help="首次安装必选：isolated 不改原文档；indexed 允许在原 Agent 文档添加可提交的条件索引")
+                      help="默认 isolated，不改原文档；indexed 需用户明确授权后才追加可提交的条件索引")
     init.add_argument("--bootstrap-mode", choices=BOOTSTRAP_MODES,
                       help="默认 Local-only（仅本地）；Standard 需用户明确选择")
     deinit = commands.add_parser("deinit", help="预览 Local-only 清理；加 --yes 删除本地 Bootstrap 与 exclude 区块")

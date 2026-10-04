@@ -1,15 +1,17 @@
 # 给 Coding Agent 的安装说明
 
 用户已在目标项目的对话框提供本仓库链接并要求安装时，由你执行全流程。
-Bootstrap 正文仍默认 Local-only；两项安装决定必须由用户主动选择。人不操作 CLI。
+Bootstrap 正文默认 Local-only；无生产目标时默认 Local-first，无索引授权时默认 isolated。人不操作 CLI。
 
-1. **只读识别目标与规则入口。** 记录目标 Git 根目录、status、工作树和 staged diff，读取原核心/覆盖/嵌套规则及它们引用的相关流程。向用户展示 indexed 会追加索引的路径（根 AGENTS.md、CLAUDE.md、已有 .claude/CLAUDE.md）；不存在时用本地薄入口，不扩大到所有子目录。
-2. **唤起选择工具，必须等到两项答案。** 问①“只同步仓库，不自动部署生产”或“检查通过后自动部署生产”；对应 Local-first / Production-direct。问②“允许在现有 Agent 文档添加条件索引”或“不允许，使用本地入口”；对应 indexed / isolated。明确前者仅索引可入 Git、正文仍本地，生产选项是长期授权且不跳过检查。推荐/预选、超时都不是确认；没有选择工具时逐项对话询问。已完成安装不重复问，有记录的适用选择可复用。
-3. **冲突检查，不兼容就终止本次安装。** 核对 Git/Review/Merge、部署授权与发布流水线、语义边界、文件修改范围及子 Agent 限制；逐项列出原规则位置、Bootstrap 要求、冲突原因、待决策事项。此时目标项目零写入，诊断留在对话或项目外。等人调整选择、明确授权修订具体规则或取消后，重新检查。允许索引不能当作修改旧规则的授权；更严格但兼容要求保留，例如 require human merge。
-4. **检查通过后安装与理解项目。** 源码和环境准备在目标项目之外，复用已有 Python 3.12+、Node.js 22+、jsonschema 和 archify，不改业务依赖或全局设置。indexed 先按 Gateway Flow 建任务分支。显式传两项选择安装；读取规范与 skill，按代码证据整理四层语义、manifest、地图与必要测试/部署入口。无业务实现就保持 planned。将选择、已读规则、兼容决定、来源 URL/commit、工具路径和技术自查结果写入本地 docs/installation-check.md（Standard 为 docs/project/installation-check.md）。
-5. **技术自查 + 独立子 Agent 验收。** 校验安装和地图、原任务改动、索引差异与本地隔离。随后自动启动独立干净上下文的 Installation Verifier，只给目标目录、用户两项选择和下方验收任务，不给“已通过”的结论。它只读检查并返回 PASS / REQUEST_CHANGES。缺能力、启动失败或未 PASS 只能报告“文件已落地，初始化验收未完成”；PASS 后记录其原始结果及任务引用，再交付使用说明与地图。仅有测试通过或模型口头自认不算验收完成。
+若目标目录就是当前 Bootstrap 源仓库本身，不对它再次运行 `init`。源仓库已使用 Standard 规则；按其 AGENTS.md 和 Gateway Flow 修改 Bootstrap 自身，并在任务结束时检查是否需要同步项目地图。
 
-用户选择只决定后续任务如何交付，安装本身不发布生产，也不能直接 push main。
+1. **只读识别目标与规则入口。** 记录目标 Git 根目录、status、工作树和 staged diff，读取原核心/覆盖/嵌套规则及其引用流程。识别已有生产目标：以项目部署配置、发布说明或用户提供的生产 URL 为证据；示例链接、开发预览地址不算目标。默认不检查或展示索引候选路径；仅在人要求跟踪索引时识别并展示精确修改路径。
+2. **只询问需要授权的选择。** 没有已配置的生产目标时，采用 Local-first：通过 Gateway Flow 完成测试、Review、队列合并并同步已配置的远端仓库，不自动发布生产；无需再问部署模式。有生产目标时，展示检测到的 URL、平台和部署入口，再询问是否授权 Production-direct 长期自动部署。isolated 是默认值；仅当人要求 indexed 且授权意图不清楚时，展示精确路径并确认。无回复不授予 Production-direct 或 indexed；已完成安装沿用适用的记录。若没有远端仓库，不能自行猜测或添加 remote，须报告远端配置缺失。
+3. **冲突检查，不兼容就终止本次安装。** 核对 Git/Review/Merge、部署目标与流水线、语义边界、文件修改范围及子 Agent 限制；逐项列出原规则位置、Bootstrap 要求、冲突原因和待决策事项。此时目标项目零写入；用户决定后重新检查。允许索引不授权改写旧规则；更严格但兼容要求保留，例如 require human merge。
+4. **检查通过后安装与理解项目。** 源码和环境准备在目标项目之外，复用已有 Python 3.12+、Node.js 22+、jsonschema 和 archify，不改业务依赖或全局设置。indexed 先按 Gateway Flow 建任务分支。无显式部署选项时传 Local-first，无显式文档选项时传 isolated；Production-direct 和 indexed 只在获得明确授权后传入。读取规范与 skill，按代码证据整理四层语义、manifest、地图和必要测试/部署入口。若存在生产目标，填充规则模板里的 URL、平台、发布入口、检查和凭据引用；向用户确认缺项，绝不记录秘密值或虚构配置。若没有生产目标，明确记录未配置，常规交付仍通过队列同步远端。无业务实现就保持 planned。将选择或安全默认、已读规则、兼容决定、来源 URL/commit、工具路径和技术自查结果写入安装文档（Local-only 为 docs/installation-check.md；Standard 为 docs/project/installation-check.md）。
+5. **技术自查 + 独立子 Agent 验收。** 校验安装和地图、原任务改动、索引差异与本地隔离。随后自动启动独立干净上下文的 Installation Verifier，只给目标目录、生效模式及其来源（明确授权或安全默认）和验收任务，不给“已通过”的结论。它只读检查并返回 PASS / REQUEST_CHANGES。缺能力、启动失败或未 PASS 只能报告“文件已落地，初始化验收未完成”；PASS 后记录其原始结果及任务引用，再交付使用说明与地图。仅有测试通过或模型口头自认不算验收完成。
+
+Local-first 的常规交付是通过 Gateway Flow 合并并同步已配置的远端仓库；这不等于 Coding Agent 直接 push main。没有 remote 时报告缺失，不自行创建。安装本身不发布生产。
 若索引文件混有人的未提交修改，只能分离自己的区块按 Gateway Flow 提交；无法分离则保留待处理，不能一并暂存。
 Standard 只有用户另外明确要求完整规范入库时才选；保持原无覆盖布局，原文件不同仍报冲突，不能强行接管。
 旧版安装不能静默升级；要改变入口方式，先备份本地规则，经清理确认后卸载再安装。v2 原本地安装仍可核对和卸载。
@@ -17,7 +19,7 @@ Standard 只有用户另外明确要求完整规范入库时才选；保持原�
 **执行命令（仅供 Agent；替换尖括号中的绝对路径）**
 
 ```text
-<外部环境Python> <Bootstrap源码>/bootstrap.py init <目标项目> --name <产品名称> --archify <外部archify目录> --deployment-mode <用户选择的Local-first或Production-direct> --agent-doc-mode <用户选择的isolated或indexed>
+<外部环境Python> <Bootstrap源码>/bootstrap.py init <目标项目> --name <产品名称> --archify <外部archify目录> [--deployment-mode Local-first|Production-direct] [--agent-doc-mode isolated|indexed]
 <外部环境Python> <目标项目>/.project-bootstrap/bootstrap.py map <目标项目>/.project-bootstrap/project.manifest.json --output <目标项目>/.project-bootstrap/docs/map.html --archify <外部archify目录>
 <外部环境Python> <目标项目>/.project-bootstrap/bootstrap.py verify-install <目标项目>
 ```
@@ -47,10 +49,10 @@ Git 条件配置只影响安装所在的工作区；共享 info/exclude、全局
 ```text
 角色：Installation Verifier，只读，不修改、不提交、不部署，不继承安装者对话或结论。
 目标目录：<绝对路径>
-用户已确认：Deployment Mode=<值>；Agent Document Mode=<值>。
+用户确认的任何授权：Deployment Mode=<Production-direct 或 Local-first>；Agent Document Mode=<indexed 或 isolated>。未选择时使用 Local-first 与 isolated 安全默认。
 从实际项目入口开始读取原规则、本地 Bootstrap 规范与 skill，引用对应文件作为依据。
 核对模式、原项目限制、技术自查结果和 Git 差异；仅授权条件索引允许进入 Git。
-用“修改登录错误提示”的合成任务说明定位节点、Task Branch、测试、Review、Merge Queue 和部署去向；
+用“修改登录错误提示”的合成任务说明定位节点、Task Branch、测试、Review、Merge Queue 和部署去向；无生产目标时结果应同步远端仓库而不发布生产；有目标时只在获授权且 Deployment Check 通过后部署；
 再判断“只修改 NODE:X 却必须改 NODE:Y”时应如何处理。没有实际业务节点时只能作假设，不声称业务已实现。
 输出 PASS 或 REQUEST_CHANGES，加原因、读取证据和可验证修改要求；不执行真实开发或发布。
 ```

@@ -271,20 +271,19 @@ REQUEST_CHANGES
 
 **Deployment 规范 · 1. 初始化时选择部署模式**
 
-首次初始化必须由用户选择 Deployment Mode，**没有自动采用的默认值**。
-Agent 必须唤起当前宿主的选择工具，展示“只同步仓库，不自动部署生产”和“检查通过后自动部署生产”。
-两项分别对应 Local-first / Production-direct；推荐项不等于已确认。无选择工具时在对话逐项询问，未回答不得安装。
-也可明确传 `--deployment-mode Local-first` 或 `--deployment-mode Production-direct`。
-Agent 代用户初始化时不得自行选择 Production-direct，必须有用户的主动选择；
-Agent 使用命令参数将用户明确授权落盘，初始化本身不执行部署。
+初始化先只读识别目标项目是否已有生产部署目标。证据来自现有部署配置、发布文档或用户提供的生产 URL；示例链接、开发预览地址不算生产目标。
+没有生产目标时安全默认是 Local-first，不询问生产授权：开发任务仍按 Gateway Flow 测试、Review、合并并同步已配置的远端仓库，不直接 push main，也不发布生产。若仓库没有可用 remote，只能完成本地队列并明确报告远端未配置；不得猜 URL 或自行添加 remote。
+发现生产目标时，向用户展示已识别的 URL、平台和部署入口，再询问是否授权 Production-direct 长期部署；目标缺少平台、流水线或验收入口时，只列出缺项，不猜测或创建生产资源。
+Agent Document Mode 默认 isolated；不主动询问 indexed。只有人提出希望索引进入 Git 时，才展示精确路径并确认含糊的授权范围。
+Agent 代用户初始化不得自行选择 Production-direct 或 indexed；用户无回复时分别保持 Local-first 与 isolated。安装本身不执行部署。
 
 | 模式 | 流程与授权 |
 |---|---|
-| Local-first（用户选择仅同步仓库） | Agent 完成修改 → 执行测试 → 启动 Local / Preview 环境 → 提供可查看入口 → 停止。Agent 不得自行进入 Production；只有用户明确提出部署生产环境后，才可以继续 Production Deployment |
-| Production-direct | 用户在初始化主动选择即授予 Agent 长期 Production Deployment 权限。Agent 完成修改 → 执行测试 → 执行项目 Deployment Check → 检查全部通过 → 自动部署 Production；后续任务完成无需再次询问是否部署 |
+| Local-first（无生产目标时的默认值） | Agent 完成修改 → 测试 → 独立 Review → Merge Queue 合并并同步已配置的远端仓库；remote 不可用时说明阻碍。有本地预览入口时可提供查看。不得自动进入 Production；只有用户明确提出单次生产发布后才继续 |
+| Production-direct | 目标已识别且用户主动授权后，Agent 完成修改 → 测试与 Review / Merge → 对待发布版本执行 Deployment Check → 全部通过后使用已配置入口部署 Production；后续无需重复询问 |
 
-Local-first 适用于 UI / UX 调整、产品功能验证、尚需人工确认效果的任务和生产风险较高的项目。
-Production-direct 是**使用初始化时的一次长期授权，替代每次部署前的人工确认**，不代表跳过检查。
+Local-first 适用于没有生产目标、UI / UX 调整、产品功能验证、尚需人工确认效果的任务和生产风险较高的项目。它不阻止任务经 Gateway Flow 同步远端仓库。
+Production-direct 是**用户对已识别目标授予的一次长期授权，替代每次部署前的人工确认**，不代表跳过检查。仅提供 URL 不等于授权。
 Local-first 的单次生产部署请求只授权该次部署，不自动切换长期模式。
 
 **2. Deployment Check**
@@ -297,8 +296,8 @@ Local-first 的单次生产部署请求只授权该次部署，不自动切换�
 4. 满足当前项目已有的部署要求。
 
 Deployment Check 是统一概念，不强制所有项目使用相同 CI/CD 技术实现。
-项目在 `docs/project/rules.md` 的「Deployment Check」填写具体命令、执行入口和通过标准，
-同时定义 Local / Preview 启动入口与 Production 发布方式；可引用项目已有 CI / 部署文档。
+初始化发现生产目标时，在 `docs/project/rules.md` 的「Deployment Check」填写实际目标 URL、平台/项目、已有发布入口、待部署版本、执行检查与通过标准；Local-only 写入 `.project-bootstrap/docs/rules.md`。
+优先引用项目已有 CI / 部署文档，并记录 Local / Preview 入口。未知信息保持待确认；不创建部署平台、不写秘密值、不添加未经请求的业务流水线。
 检查必须对应实际待部署版本；检查未定义、未运行、结果缺失或失败都不算通过。
 Agent 应报告具体缺失 / 失败项，处理阻碍后重新检查，不以再问一次是否部署替代 Deployment Check。
 Local / Preview 启动后应验证入口可访问；若项目还没有运行入口，说明缺失，不能声称已启动或改去生产。
@@ -335,14 +334,14 @@ Bootstrap 只安装规范与配置模板，不创建部署平台、统一 CI/CD 
 README 引导 Agent 读取源仓库 INSTALL.md；依赖准备、CLI、排错、地图生成与卸载由 Agent 执行。
 人类手册只教人如何表达目标、边界、查看结果和退出，不把 shell 命令当成人的安装步骤。
 源码与依赖环境放在目标项目之外；不修改业务依赖清单、锁文件或已有未提交改动。
-首次安装先完成两项选择与规则冲突检查；文件落地后当前会话主动读取规则，再由独立安装验收子 Agent 验证加载和流程。
+首次安装先识别部署目标与已有规则；缺省使用 Local-first / isolated，仅对 Production-direct、indexed 或 Standard 这类提高权限/入库范围的选择请求明确授权。完成冲突检查后，文件落地的当前会话主动读取规则，再由独立安装验收子 Agent 验证加载和流程。
 人类与工具的“选择”“安装文件就位”“技术验证”“独立验收”是不同状态，不得混称完成。
 
 **初始化落地模式 · Local-only（默认） / Standard（显式）**
 
-Bootstrap 内容默认 Local-only；Deployment Mode 与 Agent Document Mode 必须通过选择工具明确确认。
+Bootstrap 内容默认 Local-only；无生产目标时 Deployment Mode 默认 Local-first，Agent Document Mode 默认 isolated。Production-direct、indexed 与 Standard 仍必须有明确用户授权。
 Standard 仅在人另外明确要求完整规范随项目提交时使用；允许索引不自动切换 Standard。
-CLI 的首次 init 必须带 --deployment-mode 与 --agent-doc-mode，缺项在写入前失败；CLI 不替宿主唤起 UI，也不能证明参数确由人选择。
+CLI 的首次 init 缺少低权限选项时使用 Local-first / isolated；CLI 不替宿主识别生产目标或确认授权。Agent 只有获得明确授权后才能传 Production-direct、indexed 或 Standard。
 重复初始化保留已安装模式和本地编辑，不承担升级；模式变更须由人显式提出。
 Local-only 须位于已有 Git 工作区根目录，不擅自 git init。Standard 保留原来的无覆盖文件布局。
 
@@ -358,19 +357,19 @@ Local-only 须位于已有 Git 工作区根目录，不擅自 git init。Standar
 metadata 始终相对于目标项目根目录，隐藏目录不是业务源根。读取代码后生成语义投影，空项目保持 planned。
 人类使用说明安装为 docs 下的 usage.md，与根 MANUAL.md 使用同一份内容；Agent 提供其绝对路径入口。
 
-**首次安装第二项必选 · Agent Document Mode**
+**Agent Document Mode · isolated 默认 / indexed 明确授权**
 
 | 选择 | 参数 | 文件与 Git 边界 |
 |---|---|---|
-| 不允许修改原 Agent 文档 | `--agent-doc-mode isolated` | 沿用本地薄入口，原核心文档字节不变 |
+| 默认不修改原 Agent 文档 | `--agent-doc-mode isolated` | 沿用本地薄入口，原核心文档字节不变 |
 | 允许添加条件规则索引 | `--agent-doc-mode indexed` | 仅在用户确认的既有核心文档追加短索引；这些索引可按 Gateway Flow 提交，正文仍在本地 |
 
-首次安装前先识别并展示候选路径。脚本识别根 AGENTS.md、CLAUDE.md 及 .claude/CLAUDE.md，
+只有人要求 indexed 时才识别并展示候选路径。脚本识别根 AGENTS.md、CLAUDE.md 及 .claude/CLAUDE.md，
 不存在的核心文档使用对应本地薄入口；不递归修改嵌套规则，不自动为第三方命名文档创建适配器。
 AGENTS.override.md 遮蔽原 AGENTS.md 时先停止并由用户确定入口，不通过索引偷偷绕过覆盖规则。
 已有未提交内容、原编码与换行保留，区块外不重写。非法链接、损坏/重复标记均在写入前拒绝。
 索引只追加到 UTF-8（可带 BOM）文档，原字节和换行保留；其他编码先停止交用户决定，不混写或自动转换。
-Standard 仍保留原无覆盖布局；已有不同文档报冲突，不因选择 indexed 而覆盖。两种必选值仍记录在新配置中。
+Standard 仍保留原无覆盖布局；已有不同文档报冲突，不因选择 indexed 而覆盖。有效模式及其来源（用户授权或安全默认）记录在新配置中。
 
 可提交索引固定为带标记的条件性说明：只有项目根目录 .project-bootstrap/AGENTS.md 存在时才读取该文件及 skill；
 不存在则忽略本区块、继续原项目规则，不下载、不自动安装、不提示协作者补齐。不能用无条件 @ 导入替代这个判断。
@@ -380,14 +379,14 @@ Standard 仍保留原无覆盖布局；已有不同文档报冲突，不因选�
 **安装前规则冲突检查（目标项目零写入）**
 
 安装 Agent 读取现有核心文档、实际生效的覆盖/嵌套规则及其引用的相关流程。
-结合两项选择，核对 Git/Review/Merge、部署权限和自动发布流水线、语义边界、可修改文件及子 Agent 限制。
+结合检测到的部署目标、实际授权/默认值，核对 Git/Review/Merge、部署权限和自动发布流水线、语义边界、可修改文件及子 Agent 限制。
 自然语言冲突由 Agent 逐条判断，工具不宣称可用关键词或 schema 自动证明兼容。
 
 无法同时满足的规则必须终止本次安装，目标文件、索引和本地 Git 配置保持原样；诊断先写在对话或项目外。
 每条冲突列出“原规则及位置 → Bootstrap 要求 → 不兼容原因 → 需要用户决定的事项”，不只给笼统提示。
 用户可改安装选择、明确授权修订具体旧规则，或取消；做出决定后必须重新核对，不能自动继续旧检查结果。
 允许索引不等于授权改写旧规则。已有更严格但兼容的要求保留，例如 require human merge 是可用配置，不必当作冲突。
-检查通过后将两项选择、已读规则、兼容决定和证据写入安装文档中的 installation-check.md；不复制秘密或无关私有内容。
+检查通过后将有效选择及来源、已读规则、兼容决定和证据写入安装文档中的 installation-check.md；不复制秘密或无关私有内容。
 
 **安装后独立验收（Installation Verifier）**
 
@@ -396,7 +395,7 @@ Standard 仍保留原无覆盖布局；已有不同文档报冲突，不因选�
 不同于开发任务的 Review Subagent（后者只能使用五类评审包）；两者的只读、不改代码原则一致。
 
 1. 沿项目实际生效入口读取原规则、Bootstrap 规范和 skill，报告对应文件位置与可核对依据，不只说“已加载”。
-2. 确认两项选择和原项目限制，核对安装 Agent 的技术检查证据及 Git 差异；只有授权索引允许可见。
+2. 核对生效模式（Local-first / isolated 默认，Production-direct / indexed 需授权）和原项目限制，以及安装 Agent 的技术检查证据及 Git 差异；只有授权索引允许可见。
 3. 用合成修改任务说明定位节点、Task Branch、测试、独立 Review、Merge Queue 和部署去向，并用严格节点边界反例验证会停止。
 4. 只读输出 PASS 或 REQUEST_CHANGES，给出原因和修改要求；不得写文件、提交、调用真实部署或通过创建生产资源演练。
 5. 安装 Agent 记录原始验收结果与身份/任务引用；只有 PASS 且技术检查通过，才向人报告初始化完成。
@@ -441,7 +440,7 @@ deinit 删除 .project-bootstrap/，只移除本次拥有的入口/条件索引�
 入口原本存在或后来追加的其他内容保留；跟踪路径、链接或被破坏的清理区块先报错，不猜测删除。
 Standard 不适用 deinit。旧 .bootstrap/install-state.json 安装不能自动迁移：先备份、确认卸载，再初始化并恢复编辑。
 源码保留旧版 deinit 支持；v2 本地安装可检查/卸载，重复 init 沿用原 isolated 配置，不补写新索引或自动迁移。
-新的文档模式写入 v3 状态；要更改入口方式，先确认卸载再按两项选择重新安装。真实任务提交不随卸载回滚。
+新的文档模式写入 v3 状态；要更改入口方式，先确认卸载再安装。真实任务提交不随卸载回滚。
 
 Local-only 只管 Git 可见性；Local-first 只管部署去向。Gateway Flow、Deployment、STS 和语义边界全部继续生效。
 

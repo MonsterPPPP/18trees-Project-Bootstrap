@@ -5,9 +5,9 @@ description: 在具有 project.manifest.json 的项目中按语义节点修改�
 
 先确定角色：
 - Review Subagent：仅使用五类评审包，不自行读取代码库或 Coder 会话，直接执行 Gateway Flow Reviewer 契约。
-- Installation Verifier：独立只读沿目标项目真实入口读取原规则、Bootstrap 规范与 skill，核对用户两项选择、Git 边界和技术证据，
+- Installation Verifier：独立只读沿目标项目真实入口读取原规则、Bootstrap 规范与 skill，核对生效部署/文档模式、Git 边界和技术证据，
   用合成任务及 Strict Node Boundary 反例判断流程；只返回 PASS / REQUEST_CHANGES，不修改、提交或部署。执行接口规范中的安装验收契约，不跑下方编码流程。
-- 安装 Agent：遵循源仓库 INSTALL.md 的两项选择、写入前冲突检查、安装和独立验收；不冒用以上两个角色替自己签字。
+- 安装 Agent：遵循源仓库 INSTALL.md 的生产目标发现、安全默认、必要授权、写入前冲突检查、安装和独立验收；不冒用以上两个角色替自己签字。
 
 其他角色识别当前安装：Local-only 读取 `.project-bootstrap/AGENTS.md` 与 `.project-bootstrap/interface-spec.md`；
 Standard 读取根 AGENTS.md 与 .bootstrap/interface-spec.md。原项目和嵌套规则继续适用，不静默覆盖。
@@ -23,8 +23,8 @@ Local-only 正文及产物只放 .project-bootstrap/；isolated 不改原文档�
 索引必须在本地规则不存在时忽略，不触发下载/安装、不要求协作者补齐；原文和未提交内容保持。
 每次任务先执行 `python .project-bootstrap/bootstrap.py verify-install .`，刷新继承排除规则并验证当前安装。
 新建 worktree 后由 Agent 按源仓库 INSTALL.md 接入，验证前不声称已继承；不要求人执行安装命令。
-首次安装必须唤起选择工具，等待人选择 Local-first / Production-direct 及 isolated / indexed；推荐不是确认，不能使用隐式默认。
-无工具则逐项对话询问；重复安装沿用已记录的选择。正文默认 Local-only，Standard 必须另外明确要求，安装源码与依赖放项目外。
+首次安装先识别生产目标；无目标默认 Local-first，有目标时向人展示并明确询问 Production-direct 授权。文档模式默认 isolated；只有人提出 indexed 时才检查具体索引范围并取得明确授权。
+选择工具只问发现后确实需要的授权；无工具时在对话中询问。重复安装沿用已记录的选择。正文默认 Local-only，Standard 必须另外明确要求，安装源码与依赖放项目外。
 写入前读取实际生效旧规则及引用流程；不兼容就零写入终止，列出来源、冲突及待裁决事项，等用户决定后重查。
 允许索引不允许改写旧规则；indexed 在 Task Branch 只追加带标记区块，不批量改嵌套文件。
 技术检查后必须自动启动 Installation Verifier，PASS 前只能报告文件已落地；父 Agent 自查不能代替独立验收。
@@ -58,9 +58,9 @@ Reviewer 输出使用规范中的机器间判定格式；其他角色继续使�
 
 **Deployment 阶段**
 
-1. 非 Reviewer 角色主动读取当前协作配置入口的 `Deployment Mode` 与 `docs/project/rules.md` 的 Deployment Check；不重复询问模式，不擅自修改。初始化没有隐式部署默认，必须用户主动选择后传 `--deployment-mode Production-direct`，不得代用户推断生产长期授权。
+1. 非 Reviewer 角色主动读取当前协作配置入口的 `Deployment Mode` 与 `docs/project/rules.md` 的 Deployment Check；不重复询问模式，不擅自修改。无生产目标时默认 Local-first；Production-direct 必须由用户针对已识别目标明确授权，不得推断。
 2. 先完成开发与验证，再按 `Development Complete → Testing / Deployment Check → Deployment Policy → Local / Preview / Production` 推进。Gateway Flow 不变；Production 必须完成 Review / Merge，Production-direct 不能绕过 `require human merge` 或从未合并分支发布。
-3. Local-first：修改与测试完成后启动 Local / Preview，验证并提供可查看入口后停止；只有明确生产请求才继续 Production，且仍须通过 Deployment Check。单次生产请求不修改长期模式。
+3. Local-first：修改、测试和 Gateway Flow 完成后同步远端仓库；有本地预览入口时可提供查看。不得自动部署 Production；只有明确的单次生产请求才继续，且仍须通过 Deployment Check。单次生产请求不修改长期模式。
 4. Production-direct：初始化的一次长期授权替代每次部署前确认；后续任务对待部署版本执行必要测试、成功 Build、全部阻断检查与项目已有部署要求，全部通过即自动部署 Production，不再次询问是否部署。不强制统一 CI/CD，不把缺失、未执行或失败的检查当作通过。
 5. 配置、运行入口、权限或检查有具体阻碍时如实说明并处理；不伪造预览或部署成功。显式模式变更写回 AGENTS.md。Local-first 下若合并会触发自动生产发布，先按项目流程阻止该发布，不能分离则保留分支并报告；自动 Merge 不是生产授权。
 

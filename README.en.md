@@ -188,7 +188,7 @@ So this project **deliberately adds no competing coding spec**: it defines no co
 
 ### 4. Accompanying feature: optional integration, reversible installation
 
-During initialization, explicitly choose whether Bootstrap may append rule indexes to existing agent documents.
+During initialization, Bootstrap uses isolated local entry points by default; it asks before appending rule indexes to existing agent documents.
 
 If you decline, existing core documents remain unchanged and local entry points are used.
 If you allow it, only marked, conditional indexes may enter Git; rules, configuration, maps and reports stay local.
@@ -222,17 +222,11 @@ The complete boundaries are recorded item by item in [docs/verification.md](docs
 
 Send this in the target project's Coding Agent chat:
 
-> Using this repository, initialize Project Bootstrap in the current project: `https://github.com/MonsterPPPP/18trees-Project-Bootstrap`. Ask me to choose the delivery policy and whether rule indexes may be added. Check existing rules for conflicts, then tell me how to use it after independent acceptance passes.
+> Using this repository, initialize Project Bootstrap in the current project: `https://github.com/MonsterPPPP/18trees-Project-Bootstrap`. Check existing rules and production deployment configuration first. If there is no production target, use the default repository delivery flow and do not deploy to production. Ask before changing existing agent documents or configuring production release. Tell me how to use it after independent acceptance passes.
 
-The Agent reads [INSTALL.md](INSTALL.md), opens its selection tool, and waits for your two explicit choices:
+The Agent reads [INSTALL.md](INSTALL.md) and checks for an existing production target:
 
-| Required choice | Options |
-|---|---|
-| Delivery policy | Sync to the repository without automatic production deployment; or automatically deploy after all checks pass (ongoing authorization) |
-| Document integration | Allow conditional, committable indexes in existing agent documents; or keep existing documents unchanged and use local entry points |
-
-There are no silently applied defaults. Incompatible existing rules stop installation before any target writes;
-the Agent lists conflicts for your decision. After installation and technical checks, an independent sub-agent must
+Without a production target, the default is Local-first: after tests, independent Review, and queue merge, synchronize the configured remote repository without production deployment. If no remote is configured, the Agent reports that instead of inventing one. If a production target exists, the Agent shows its URL, platform, and deployment entry before asking for ongoing Production-direct authorization. Isolated local entry points are the default; the Agent asks before adding tracked indexes. Incompatible existing rules stop installation before any target writes. After installation and technical checks, an independent sub-agent must
 verify rule loading and workflow understanding. Only PASS completes initialization; initialization itself never deploys production.
 
 ### Prerequisites
@@ -268,7 +262,7 @@ After installation, continue in the same chat:
 
 See the [human manual](MANUAL.md) for details.
 
-**Content defaults to Local-only; both configuration choices are mandatory.** You decide automatic production deployment and permission to add tracked indexes during initialization.
+**Content defaults to Local-only; elevated permissions stay opt-in.** Without a production target, initialization defaults to repository delivery. Production-direct and indexed require explicit authorization after the target is identified.
 
 ---
 

@@ -35,7 +35,7 @@ def cli(root, *args):
 
 
 def selected_install(*args, **kwargs):
-    """Legacy regression scenarios supply the two explicit user choices."""
+    """Regression scenarios can override the safe repository-only defaults."""
     kwargs.setdefault("deployment_mode", "Local-first")
     kwargs.setdefault("agent_doc_mode", "isolated")
     return app.initialize(*args, **kwargs)
