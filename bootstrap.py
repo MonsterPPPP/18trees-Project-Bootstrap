@@ -1283,8 +1283,8 @@ def installation_report(target, agent_report=None, verifier_report=None, verifie
     remote = (f"{remote_name}（已登记，连接/推送/PR 权限未实测）" if remote_name in remotes
               else "远端不可用或未选择；未同步远端")
     behavior = {
-        "Auto": "自动提交任务改动、Review、队列检查、推送分支/创建并合并 PR、同步本地主分支、清理已交付分支。远端不可用则先完成本地合并并提醒。",
-        "Manual": "自动提交和 Review；远端可用时推送任务分支并创建 PR，随后等待人类合并。无远端保留本地提交和分支。",
+        "Auto": "自动提交任务改动、Review、队列检查、推送分支/创建并合并 PR、同步本地主分支、清理已交付分支。远端必需审批未满足时保持 Auto，保留 PR/head/分支，报告等待必需审批；满足后重新核对并继续。审批、检查或队列等待不触发本地合并兜底；确实无法访问远端或执行 PR 操作时先完成本地合并，明确远端未同步。",
+        "Manual": "自动提交和 Review；远端可用时推送任务分支并创建 PR，随后等待人类合并，不启用自动合并。无远端保留本地提交和分支。",
         "Unselected": "交付方式待选择；不授予自动提交/推送/PR/合并权限。",
         "Legacy": "沿用旧 Git Push Mode 与人工合并约束；未授权新版完整自动交付。",
     }[mode]
@@ -1298,7 +1298,7 @@ def installation_report(target, agent_report=None, verifier_report=None, verifie
         ("规则与文档", f"{setting('Bootstrap Mode')} / {setting('Agent Document Mode')}", "规则、地图及回执路径见下方；沿用现有隔离/入库边界。"),
         ("Git 交付", mode, behavior),
         ("Git 远端", remote, "只有真实提交/PR/合并结果才能证明远端交付完成。"),
-        ("Review 与协作", "独立 Review + 串行 Merge Queue", "每个任务独立分支；主 Agent 推进到所选终点，不在 Review PASS 后无故结束。更严格原规则优先，安装 Agent 必须说明有效限制。"),
+        ("Review 与协作", "独立 Review + 串行 Merge Queue", "每个任务独立分支；主 Agent 推进到所选终点，不在 Review PASS 后无故结束。子 Agent PASS 不替代远端审批；有效 require human merge 保留人的最终合并责任，不启用自动合并。更严格原规则优先，安装 Agent 必须说明有效限制。"),
         ("部署", setting("Deployment Mode"), "Local-first 不自动发布生产；Production-direct 仍须通过部署检查。"),
         ("低成本 DSH Agent", agent_labels[agent_status] + (f"（{versions_text}）" if versions_text else ""), agent_next),
         ("技术检查", technical, "技术通过不代替独立安装验收。"),
@@ -1309,7 +1309,7 @@ def installation_report(target, agent_report=None, verifier_report=None, verifie
     section = f"{RECEIPT_BEGIN}\n# 初始化配置回执\n\n{status}\n\n| 配置项 | 实际状态 | 后续行为 |\n|---|---|---|\n"
     section += "\n".join("| " + " | ".join(cell(value) for value in row) + " |" for row in rows)
     section += f"\n\n规则入口：`{entry.relative_to(root).as_posix()}`；地图：`{(docs / 'map.html').relative_to(root).as_posix()}`。\n"
-    section += "服务端分支保护、CI 与托管队列：本工具未配置，是否生效由安装 Agent 核对说明。\n"
+    section += "远端保护/Ruleset、PR 审批、检查、队列及合并权限：本工具未核对，不能据此判断没有保护；安装 Agent 在本回执区块外记录实际状态、有效要求与未核对项。未设置保护是正常状态，按 Bootstrap 门禁继续；日常成功回执不重复提醒。\n"
     section += f"\n独立验收： {acceptance}\n任务引用： {reference}\n```text\n{evidence}\n```\n<!-- receipt-snapshot:{fingerprint} -->\n{RECEIPT_END}\n"
     if RECEIPT_BEGIN in previous:
         before, tail = previous.split(RECEIPT_BEGIN, 1)

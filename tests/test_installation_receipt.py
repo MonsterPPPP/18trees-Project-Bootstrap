@@ -109,6 +109,60 @@ class InstallationReceiptTests(unittest.TestCase):
             self.assertNotIn("基础初始化成功", summary)
             self.assertIn("REQUEST_CHANGES", summary)
 
+    def test_remote_requirements_are_unchecked_without_changing_delivery_choice(self):
+        for layout in ("Standard", "Local-only"):
+            for mode in ("Auto", "Manual"):
+                with self.subTest(layout=layout, mode=mode), tempfile.TemporaryDirectory() as temp:
+                    root = Path(temp) / "project"
+                    self.install(root, layout, git_remote_setup="url",
+                                 remote_url="https://example.invalid/synthetic.git", git_completion_mode=mode)
+                    entry = root / (f"{app.LOCAL_HOME}/AGENTS.md" if layout == "Local-only" else "AGENTS.md")
+                    before = entry.read_bytes()
+                    with patch.object(app.subprocess, "run", wraps=subprocess.run) as calls:
+                        summary, _ = app.installation_report(root, {"status": "skipped"})
+                    self.assertEqual(before, entry.read_bytes())
+                    self.assertIn("连接/推送/PR 权限未实测", summary)
+                    self.assertIn("本工具未核对，不能据此判断没有保护", summary)
+                    self.assertIn("未设置保护是正常状态", summary)
+                    self.assertIn("子 Agent PASS 不替代远端审批", summary)
+                    if mode == "Auto":
+                        self.assertIn("保持 Auto，保留 PR/head/分支", summary)
+                        self.assertIn("审批、检查或队列等待不触发本地合并兜底", summary)
+                        self.assertIn("满足后重新核对并继续", summary)
+                    else:
+                        self.assertIn("等待人类合并，不启用自动合并", summary)
+                    for call in calls.call_args_list:
+                        command = call.args[0]
+                        self.assertEqual(command[0], "git", command)
+                        self.assertNotIn(command[3], ("add", "commit", "push", "merge", "fetch", "pull"))
+                    self.assertEqual(app.git_output(root, "diff", "--cached", "--name-only"), "")
+                    head = subprocess.run(["git", "-C", str(root), "rev-parse", "--verify", "HEAD"], capture_output=True)
+                    self.assertNotEqual(head.returncode, 0)
+
+    def test_both_layouts_preserve_agents_remote_rule_evidence_outside_receipt(self):
+        records = (
+            "合成核对：目标 trunk；保护与 Ruleset 未配置；按 Bootstrap 门禁继续。",
+            "合成核对：目标 trunk；保护已配置；必需审批 1；PR https://example.invalid/pr/1；head synthetic-a。",
+            "合成核对：目标 trunk；保护 API 返回 403，状态未核对；PR 检查待完成。",
+        )
+        for layout in ("Standard", "Local-only"):
+            with self.subTest(layout=layout), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp) / "project"
+                self.install(root, layout, git_completion_mode="Auto")
+                summary, report = app.installation_report(root, {"status": "skipped"})
+                for record in records:
+                    with self.subTest(record=record):
+                        report.write_text(record + "\n" + summary + "\n既有授权：不修改保护规则。\n", encoding="utf-8")
+                        updated, _ = app.installation_report(root, {"status": "skipped"})
+                        saved = report.read_text(encoding="utf-8")
+                        self.assertTrue(saved.startswith(record + "\n"))
+                        self.assertTrue(saved.endswith("\n既有授权：不修改保护规则。\n"))
+                        self.assertIn("本工具未核对", updated)
+                        self.assertNotIn(record, updated)
+                        self.assertNotIn("必须配置保护", updated)
+                        app.installation_report(root, {"status": "skipped"})
+                        self.assertEqual(saved, report.read_text(encoding="utf-8"))
+
     def test_cli_writes_readable_receipt_and_portable_report_entry(self):
         with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, isolated_agent_env(Path(temp))):
             root = Path(temp) / "project with spaces"
