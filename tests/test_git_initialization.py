@@ -148,17 +148,18 @@ class GitInitializationTests(unittest.TestCase):
             self.assertIn("Git Push Mode: Remote-auto", (root / "AGENTS.md").read_text(encoding="utf-8"))
             self.assertEqual(git(root, "remote"), "")
 
-    def test_slug_suggestion_and_interactive_two_choice_prompts(self):
+    def test_slug_suggestion_and_interactive_delivery_choice_prompts(self):
         self.assertEqual(app.slug_suggestion("Synthetic Project v2"), "synthetic-project-v2")
         self.assertEqual(app.repo_name_suggestions("Synthetic Project"),
                          ("synthetic-project", "synthetic-project-app", "synthetic-project-project"))
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp) / "interactive"
-            with patch("builtins.input", side_effect=["Demo", "local", "Remote-auto"]):
+            with patch("builtins.input", side_effect=["Auto", "Demo", "local"]):
                 app.initialize(root, None, bootstrap_mode="Standard", deployment_mode="Local-first",
                                agent_doc_mode="isolated", interactive=True)
             self.assertIn('"name": "Demo"', (root / "project.manifest.json").read_text(encoding="utf-8"))
-            self.assertIn("Git Remote Setup: Remote-pending", (root / "AGENTS.md").read_text(encoding="utf-8"))
+            self.assertIn("Git Completion Mode: Auto", (root / "AGENTS.md").read_text(encoding="utf-8"))
+            self.assertIn("Git Push Mode: Local-only", (root / "AGENTS.md").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

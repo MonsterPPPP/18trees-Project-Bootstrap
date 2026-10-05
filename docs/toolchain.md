@@ -25,7 +25,7 @@ init 仅在完整 Bootstrap 源仓库执行；目标内副本支持 map、valida
 CLI 不识别生产 URL、不调用选择工具，也不证明授权来源；安装 Agent 负责目标发现与冲突检查。
 
 初始化会检测目标 Git 根目录与现有 remote；普通目标不在其他仓库内时没有 Git 就执行 `git init`。
-Agent 必须分别传入/询问 `--git-remote-setup` 与 `--git-push-mode`；交互 CLI 也会逐项询问。推送选择默认 Local-only，已有 remote 不自动构成推送授权。
+旧兼容流程分别传入 `--git-remote-setup` 与 `--git-push-mode`；新版选择完整交付方式见下文。推送选择默认 Local-only，已有 remote 不自动构成推送授权。
 远端可选 existing、create（GitHub CLI）、url、local；多 remote 时必须指定名称。新仓库默认 private，创建只加 remote，不暂存、提交或 push。
 GitHub CLI 不可用/未认证且没有 URL 时仍允许本地安装，配置记为 Remote-pending；Remote-auto 在远端可用前暂停同步。项目 AGENTS.md 记录 Git Remote Setup、Git Push Mode 与获准使用的 Git Remote Name，部署模式仍单独配置。多个 remote 时必须记录用户选中的名称。缺失项目名时交互询问；非交互 CLI 要求 `--name`。
 
@@ -52,6 +52,13 @@ Git directory 含 glob 或引号/换行等不能安全绑定的字符时拒绝�
 verify-install <目标> 核对本地状态、薄入口、模式、Git 排除和 manifest/map 一致性。
 它只做技术自查，不证明规则无冲突或独立验收通过。安装 CLI 输出文件落地、等待验收，不报告初始化完成。
 安装 Agent 按 INSTALL.md 完成写入前语义冲突检查和写入后只读 Installation Verifier；两者是 Agent 行为协议，不是脚本自动推理。
+新版 init 增加 --git-completion-mode Auto|Manual；新选择替代单独推送问询，不能和旧 --git-push-mode 同传。
+未选择记录 Unselected；旧参数/旧安装保持原授权。模式与选中 remote 写入项目协作入口，重复初始化不改选择。
+Auto/Manual 的 Git 操作由宿主 Agent 按 Gateway Flow 执行，不由初始化脚本提交或自动装队列服务。
+init 输出可读配置清单并保存 installation-check.md；report-install <目标> 可重新生成同一回执，不发模型请求。
+--verifier-report <原始结果文件> --verifier-ref <独立任务引用> 记录实际外部 PASS/REQUEST_CHANGES，不证明身份或代签。
+技术检查通过且独立 PASS 才显示基础初始化成功；入口、工具、manifest/map 与能力状态快照变化使旧验收失效。
+两种布局均分发入口；回执保留标记区块外人工安装记录，可选 DSH 状态与远端能力单独报告。
 诊断冲突时目标项目零写入；无子 Agent、失败或未 PASS 保留未完成状态，不伪造结果。新增 worktree 也需接入并验收。
 map 的本地输出限制在 .project-bootstrap/docs/；后续生成物同样不能散落到任务目录。
 deinit <目标> 仅预览，确认后 --yes 删除专属目录、本次拥有的入口/索引区块与条件配置；保留原文、既有复用索引和其他配置。

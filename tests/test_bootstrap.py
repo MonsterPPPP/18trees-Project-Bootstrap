@@ -131,13 +131,13 @@ class BootstrapTests(unittest.TestCase):
                                      (["--deployment-mode", "Production-direct"], "Production-direct")):
                 with self.subTest(option=option):
                     project = Path(temp) / str(len(list(Path(temp).iterdir())))
-                    command = [sys.executable, "-X", "utf8", str(app.BASE / "bootstrap.py"), "init", str(project), "--name", "新项目", "--bootstrap-mode", "Standard", "--agent-doc-mode", "isolated"]
+                    command = [sys.executable, "-X", "utf8", str(app.BASE / "bootstrap.py"), "init", str(project), "--name", "新项目", "--bootstrap-mode", "Standard", "--agent-doc-mode", "isolated", "--git-completion-mode", "Auto"]
                     result = subprocess.run(command + option, input="", capture_output=True, text=True, encoding="utf-8",
                                             env=isolated_agent_env(temp))
                     self.assertEqual(result.returncode, 0, result.stderr)
                     agents = (project / "AGENTS.md").read_text(encoding="utf-8")
                     template = (app.BASE / "templates/AGENTS.md").read_text(encoding="utf-8")
-                    self.assertEqual(agents, template.replace("@@DEPLOYMENT_MODE@@", expected).replace("@@BOOTSTRAP_MODE@@", "Standard").replace("@@AGENT_DOC_MODE@@", "isolated").replace("@@GIT_REMOTE_SETUP@@", "Local-only").replace("@@GIT_PUSH_MODE@@", "Local-only").replace("@@GIT_REMOTE_NAME@@", "none"))
+                    self.assertEqual(agents, template.replace("Git Completion Mode: Unselected", "Git Completion Mode: Auto").replace("@@DEPLOYMENT_MODE@@", expected).replace("@@BOOTSTRAP_MODE@@", "Standard").replace("@@AGENT_DOC_MODE@@", "isolated").replace("@@GIT_REMOTE_SETUP@@", "Local-only").replace("@@GIT_PUSH_MODE@@", "Local-only").replace("@@GIT_REMOTE_NAME@@", "none"))
                     self.assertIn(f"Deployment Mode: {expected}\n", agents)
                     self.assertNotIn("@@DEPLOYMENT_MODE@@", agents)
                     rules = (project / "docs/project/rules.md").read_text(encoding="utf-8")

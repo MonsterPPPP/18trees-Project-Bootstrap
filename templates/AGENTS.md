@@ -10,6 +10,13 @@ Git Push Mode: @@GIT_PUSH_MODE@@
 
 Git Remote Name: @@GIT_REMOTE_NAME@@
 
+Git Completion Mode: Unselected
+
+首次初始化在聊天中明确选择 Auto 或 Manual，保存后后续任务沿用，不重复询问。Auto 授权本任务提交、推送选中远端的任务分支、创建并合并 PR 和分支清理；Manual 授权提交、推送任务分支和创建 PR，最终等人合并。Unselected 表示待选择，不授予上述自动交付权限；旧版 Git Push Mode 授权只按旧协议执行，不静默扩大。
+Auto 必须由主 Agent 推进到交付终点，不在 Review PASS 后无故结束或再问是否提交。任务改动先提交到任务分支，独立 Review 绑定该 head；只暂存本任务内容，保留人的其他改动。Review PASS 后由协调 Agent 串行执行队列检查，远端可用时通过 PR 合并，核对远端合并提交并安全同步本地主分支及工作树；确认交付后清理任务分支。
+远端不可用或 PR 操作受阻时，Auto 仍通过本地队列检查并合并本地主分支，安全同步干净工作树，报告“本地已完成，远端未同步”及阻碍。远端待交付时保留任务分支、提交与续跑入口。Manual 此时保留本地提交和分支，不合并。Local-only 推送策略只做本地交付；不得猜 remote、覆盖未提交改动、强制推送或绕过现有门禁。
+Manual 或有效的 require human merge 在 PR 就绪后进入 WAIT_FOR_HUMAN_MERGE；人的最终合并仍须经过最新主分支集成检查。Auto 不授予生产发布权限；原项目更严格的有效约束继续适用，安装回执必须写明有效行为和阻碍。
+
 Git 配置是项目长期策略，不代表服务器已配置分支保护或托管 Merge Queue。Remote-auto 仅允许在测试、独立 Review、Merge Queue 最终检查通过后向 Git Remote Name 指定的远端推送；Coding Agent 不得直接 push main。Remote-pending 表示本地初始化已完成但远端尚未配置；Local-only 不自动推送。Git Remote Name 为 none 表示没有选定可推送远端。
 可选低成本子 Agent：主 Agent → acpx → 本机 DSH。机器选择未记录时安装 Agent 询问启用/跳过，已回答不重复询问；不可用不阻塞无关工作。
 优先考虑边界清楚、上下文少、容易验证的简单只读任务；交接与验收成本接近直接完成时主 Agent 直接处理。此为偏好，无评分、比例或强制委派。
@@ -32,7 +39,7 @@ Local-only 的配置入口为 `.project-bootstrap/AGENTS.md`；显式 Standard �
 
 Local-only 的正文、地图、截图及报告均存入 .project-bootstrap/，不得暂存或强制添加；indexed 仅授权索引可按 Gateway Flow 提交。
 记录入库文件中的索引不会使其他协作者获得本机生产授权。安装本身不发布生产；两种部署模式均遵守必要检查。
-每次任务先用已记录的外部 Python 执行 `python .project-bootstrap/bootstrap.py verify-install .`，核对本地文件与索引；
+每次任务使用已记录的外部 Python：Local-only 执行 `python .project-bootstrap/bootstrap.py verify-install .`；Standard 执行 `python .bootstrap/bootstrap.py validate project.manifest.json --map docs/project/map.html`。
 该命令只证明技术一致性，不能替代语义冲突判断或独立安装验收。执行路径记录在本地 rules.md，不改业务依赖。
 进入新 worktree 先检查是否已安装；同一项目已有明确且适用的选择可沿用，否则必须重新提问；每次新安装均需冲突检查及独立验收。
 indexed 写入原文档必须在 Task Branch，提交前核对只包含自身索引，不能混入人的未提交改动。
@@ -105,6 +112,7 @@ Reviewer 不改代码，只输出 PASS 或 REQUEST_CHANGES，加原因与修改�
 **5. 默认 Merge 与人工开关**
 
 默认 `Review PASS → 自动进入 Merge Queue → 最终检查通过 → 自动 Merge 到 main`。
+上述默认规则用于旧授权；新安装按 Git Completion Mode 的明确终点执行，Manual 等人合并、Unselected 等选择，不自动扩大权限。
 人明确指定 `require human merge`（任务指令或长期规则）时，`Review PASS → WAIT_FOR_HUMAN_MERGE`，
 等待人最终合并；其余 Review、最新 main 验证、测试和串行要求不变。
 

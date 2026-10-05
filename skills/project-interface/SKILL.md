@@ -21,7 +21,7 @@ metadata 始终相对于目标项目根目录。人类只通过对话框操作�
 
 Local-only 正文及产物只放 .project-bootstrap/；isolated 不改原文档，indexed 唯一可提交内容是用户授权的条件索引。
 索引必须在本地规则不存在时忽略，不触发下载/安装、不要求协作者补齐；原文和未提交内容保持。
-每次任务先执行 `python .project-bootstrap/bootstrap.py verify-install .`，刷新继承排除规则并验证当前安装。
+每次任务按模式核对：Local-only 执行 `python .project-bootstrap/bootstrap.py verify-install .` 刷新排除并验证安装；Standard 执行 `python .bootstrap/bootstrap.py validate project.manifest.json --map docs/project/map.html`。使用安装记录中的外部 Python，不假定系统默认 Python 含依赖。
 新建 worktree 后由 Agent 按源仓库 INSTALL.md 接入，验证前不声称已继承；不要求人执行安装命令。
 首次安装先识别生产目标；无目标默认 Local-first，有目标时向人展示并明确询问 Production-direct 授权。文档模式默认 isolated；只有人提出 indexed 时才检查具体索引范围并取得明确授权。
 选择工具只问发现后确实需要的授权；无工具时在对话中询问。重复安装沿用已记录的选择。正文默认 Local-only，Standard 必须另外明确要求，安装源码与依赖放项目外。
@@ -51,6 +51,11 @@ CLI 校验不证明语义证据正确，也不自动强制节点实现边界；�
 
 **Gateway Flow 角色路由**
 
+先读取当前协作入口 Git Completion Mode：Auto 必须继续到提交/PR/合并/同步/清理，不在 Review PASS 后结束或重复请求已有授权；Manual 提交并开 PR 后等人合并；Unselected 不授予完整交付，旧安装只沿用旧授权。
+先提交自己的任务改动，Review 绑定该 head；不得暂存用户其他修改。选中 remote 不可用时 Auto 完成本地队列合并及安全工作树同步，明确远端未同步；保留待远端交付分支。Manual 此时只留本地提交。恢复远端后重新同步检查，从任务分支交付 PR，不直接 push main。
+既有 require human merge、更严格原规则和生产约束优先。每次最终回复写已提交/PR/本地合并/远端合并/同步/分支清理的实际状态，未完成说明阻塞和续跑入口；不要以 Review PASS 代替交付完成。
+安装 Agent 必须在技术与独立安装验收后发送标准回执，用 report-install 保存既有 installation-check.md，展示配置、能力可用状态和后续行为；只有真实独立 PASS 才称基础初始化成功。
+
 读取 `.bootstrap/interface-spec.md` 中完整的《Git Workflow（Gateway Flow）》与 Review Subagent 契约。
 按收到的角色工作；不得把 Reviewer 角色当成编码任务，也不能把 Coder 自审视为独立 Review。
 
@@ -68,7 +73,7 @@ Reviewer 输出使用规范中的机器间判定格式；其他角色继续使�
 
 1. 非 Reviewer 角色主动读取当前协作配置入口的 `Deployment Mode` 与 `docs/project/rules.md` 的 Deployment Check；不重复询问模式，不擅自修改。无生产目标时默认 Local-first；Production-direct 必须由用户针对已识别目标明确授权，不得推断。
 2. 先完成开发与验证，再按 `Development Complete → Testing / Deployment Check → Deployment Policy → Local / Preview / Production` 推进。Gateway Flow 不变；Production 必须完成 Review / Merge，Production-direct 不能绕过 `require human merge` 或从未合并分支发布。
-3. Local-first：修改、测试和 Gateway Flow 完成后同步远端仓库；有本地预览入口时可提供查看。不得自动部署 Production；只有明确的单次生产请求才继续，且仍须通过 Deployment Check。单次生产请求不修改长期模式。
+3. Local-first：按 Git Completion Mode 与 Git Push Mode 完成授权范围内的交付；有本地预览入口时可提供查看。不得自动部署 Production；只有明确的单次生产请求才继续，且仍须通过 Deployment Check。单次生产请求不修改长期模式。
 4. Production-direct：初始化的一次长期授权替代每次部署前确认；后续任务对待部署版本执行必要测试、成功 Build、全部阻断检查与项目已有部署要求，全部通过即自动部署 Production，不再次询问是否部署。不强制统一 CI/CD，不把缺失、未执行或失败的检查当作通过。
 5. 配置、运行入口、权限或检查有具体阻碍时如实说明并处理；不伪造预览或部署成功。显式模式变更写回 AGENTS.md。Local-first 下若合并会触发自动生产发布，先按项目流程阻止该发布，不能分离则保留分支并报告；自动 Merge 不是生产授权。
 

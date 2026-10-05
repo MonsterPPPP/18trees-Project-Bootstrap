@@ -221,11 +221,11 @@ REQUEST_CHANGES
 
 在目标项目的 Coding Agent 对话框里发：
 
-> 请根据这个仓库，在当前项目初始化 Project Bootstrap：`https://github.com/MonsterPPPP/18trees-Project-Bootstrap`。先检查现有规则和生产部署配置；初始化时分别询问 Git 远端设置和推送策略，不要暂存或提交。没有生产目标时不部署生产；需要修改原 Agent 文档或配置生产发布时再让我确认。完成独立验收后告诉我怎么使用。
+> 请根据这个仓库，在当前项目初始化 Project Bootstrap：`https://github.com/MonsterPPPP/18trees-Project-Bootstrap`。先检查现有规则和生产部署配置；初始化时询问远端目标和 Auto / Manual 交付方式，不要暂存或提交。没有生产目标时不部署生产；需要修改原 Agent 文档或配置生产发布时再让我确认。完成独立验收后告诉我怎么使用。
 
 Agent 会读 [INSTALL.md](INSTALL.md)，先识别生产目标和现有规则：
 
-初始化会检查 Git 并分别询问远端设置与推送策略；没有 Git 时只初始化本地仓库，不暂存或提交。可选择已有 remote、用 GitHub CLI 创建、提供 URL 或暂留本地；Remote-auto 仅经测试、Review 和 Merge Queue 后推送，Local-only 不自动推送。GitHub CLI 不可用时可先完成本地安装，远端标记为待补，不猜地址。没有生产目标时默认 Local-first，不自动部署；发现生产目标时展示 URL、平台与部署入口，再询问是否授予 Production-direct 长期授权。Agent 文档默认 isolated；只有要添加可提交索引时才询问授权。旧规则冲突时终止安装并列明原因；无冲突才准备依赖、安装并生成地图。
+初始化检查 Git，并在聊天中选择远端目标与 Auto / Manual 交付方式。Auto 自动完成任务提交、独立 Review、队列检查、分支推送、PR 合并和本地同步；Manual 提交并开 PR 后等待人合并。没有可用远端时 Auto 先完成本地合并并提醒，Manual 保留本地任务分支。已有选择不重复问；初始化本身不暂存、提交或上传文件。完成后输出统一配置清单与安装记录，明确低成本 Agent 是否验证可用、Git 会做到哪一步和验收证据。没有生产目标时默认 Local-first，不自动部署；Production-direct 和条件索引仍须明确授权，旧规则冲突先停止。
 技术检查后自动启动独立子 Agent 验证加载与流程，PASS 后才报告完成；安装本身不发布生产。
 
 ### 前置条件
@@ -256,7 +256,7 @@ Python 3.12+、Node.js 22+、Git，以及 [archify](https://github.com/tt-a1i/ar
 1. **了解项目** —— "告诉我这个项目能做什么，并打开项目地图。"
 2. **提出修改** —— "修改登录失败提示，让用户知道如何重试。"
 3. **限定范围** —— "只修改 NODE:X；需要涉及其他节点时先停下说明。"
-4. **查看结果** —— "告诉我完成了什么、如何验证。" 默认独立 Review 通过后排队合并；要亲自合并就补 `require human merge`。
+4. **查看结果** —— "告诉我完成了什么、如何验证。" 按初始化选择的 Auto / Manual 继续交付；单次要亲自合并可补 `require human merge`。
 5. **退出** —— "移除当前项目的 Bootstrap，保留我的任务改动。"
 
 详细说明见 [人类使用手册](MANUAL.md)。

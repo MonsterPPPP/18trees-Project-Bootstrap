@@ -6,14 +6,14 @@
       "id": "NODE:bootstrap",
       "layer": "product",
       "name": "协作启动器",
-      "summary": "本图仅投影初始化与可选低成本子 Agent 链路，不表示业务实现。",
+      "summary": "本图投影初始化、配置回执、Git 交付规则与可选子 Agent，不表示业务实现。",
       "status": "implemented",
       "metadata": {
         "references": [
           {
             "path": "docs/interface-spec.md",
             "symbols": [],
-            "evidence": "本图仅投影初始化与可选低成本子 Agent 链路，不表示业务实现。"
+            "evidence": "本图投影初始化、配置回执、Git 交付规则与可选子 Agent，不表示业务实现。"
           }
         ]
       }
@@ -161,6 +161,75 @@
           }
         ]
       }
+    },
+    {
+      "id": "NODE:receipt",
+      "layer": "feature",
+      "name": "查看配置回执",
+      "summary": "明确每项配置、实际状态、后续行为和独立验收依据。",
+      "status": "implemented",
+      "metadata": {
+        "references": [
+          {
+            "path": "INSTALL.md",
+            "symbols": [],
+            "evidence": "明确每项配置、实际状态、后续行为和独立验收依据。"
+          }
+        ]
+      }
+    },
+    {
+      "id": "NODE:git-delivery",
+      "layer": "feature",
+      "name": "自动或人工交付",
+      "summary": "宿主 Agent 按项目选择继续交付；自动模式远端不可用时先完成本地合并。",
+      "status": "implemented",
+      "metadata": {
+        "references": [
+          {
+            "path": "docs/interface-spec.md",
+            "symbols": [],
+            "evidence": "宿主 Agent 按项目选择继续交付；自动模式远端不可用时先完成本地合并。"
+          }
+        ]
+      }
+    },
+    {
+      "id": "NODE:receipt-facts",
+      "layer": "capability",
+      "name": "状态与验收记录",
+      "summary": "汇总可读配置，保存既有安装文档；独立结果绑定安装快照，不代签 PASS。",
+      "status": "implemented",
+      "metadata": {
+        "references": [
+          {
+            "path": "bootstrap.py",
+            "symbols": [
+              "initialize",
+              "installation_report"
+            ],
+            "evidence": "汇总可读配置，保存既有安装文档；独立结果绑定安装快照，不代签 PASS。"
+          }
+        ]
+      }
+    },
+    {
+      "id": "NODE:delivery-policy",
+      "layer": "capability",
+      "name": "交付选择与终点",
+      "summary": "保存 Auto/Manual 选择并分发宿主 Agent 行为契约；不由初始化脚本提交代码。",
+      "status": "implemented",
+      "metadata": {
+        "references": [
+          {
+            "path": "bootstrap.py",
+            "symbols": [
+              "initialize"
+            ],
+            "evidence": "保存 Auto/Manual 选择并分发宿主 Agent 行为契约；不由初始化脚本提交代码。"
+          }
+        ]
+      }
     }
   ],
   "relationships": [
@@ -225,12 +294,6 @@
       "label": "原生受限执行"
     },
     {
-      "from": "NODE:optional-init",
-      "to": "NODE:delegate",
-      "kind": "precedes",
-      "label": "启用且可用后调用"
-    },
-    {
       "from": "NODE:execution",
       "to": "NODE:availability",
       "kind": "depends_on",
@@ -241,6 +304,60 @@
       "to": "NODE:native-dsh",
       "kind": "data_flow",
       "label": "ACP 请求、语义更新与结束状态"
+    },
+    {
+      "to": "NODE:receipt",
+      "kind": "contains",
+      "label": "初始化结果",
+      "from": "NODE:bootstrap"
+    },
+    {
+      "to": "NODE:git-delivery",
+      "kind": "contains",
+      "label": "任务交付",
+      "from": "NODE:bootstrap"
+    },
+    {
+      "to": "NODE:receipt-facts",
+      "kind": "contains",
+      "label": "真实状态",
+      "from": "NODE:receipt"
+    },
+    {
+      "to": "NODE:delivery-policy",
+      "kind": "contains",
+      "label": "长期选择",
+      "from": "NODE:git-delivery"
+    },
+    {
+      "to": "NODE:python-entry",
+      "kind": "contains",
+      "label": "回执工具",
+      "from": "NODE:receipt-facts"
+    },
+    {
+      "to": "NODE:python-entry",
+      "kind": "contains",
+      "label": "选择与规则分发",
+      "from": "NODE:delivery-policy"
+    },
+    {
+      "to": "NODE:receipt",
+      "kind": "precedes",
+      "label": "配置后验收",
+      "from": "NODE:optional-init"
+    },
+    {
+      "to": "NODE:delegate",
+      "kind": "precedes",
+      "label": "可用时委派",
+      "from": "NODE:receipt"
+    },
+    {
+      "to": "NODE:git-delivery",
+      "kind": "precedes",
+      "label": "按所选终点推进",
+      "from": "NODE:receipt"
     }
   ],
   "workflows": [
@@ -250,7 +367,18 @@
       "product": "NODE:bootstrap",
       "steps": [
         "NODE:optional-init",
+        "NODE:receipt",
         "NODE:delegate"
+      ]
+    },
+    {
+      "id": "FLOW:delivery",
+      "name": "初始化与 Git 交付",
+      "product": "NODE:bootstrap",
+      "steps": [
+        "NODE:optional-init",
+        "NODE:receipt",
+        "NODE:git-delivery"
       ]
     }
   ]

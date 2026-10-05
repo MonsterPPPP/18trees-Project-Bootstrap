@@ -23,6 +23,7 @@ DEPLOYMENT_MODES = ("Local-first", "Production-direct")
 BOOTSTRAP_MODES = ("Standard", "Local-only")
 AGENT_DOC_MODES = ("isolated", "indexed")
 GIT_PUSH_MODES = ("Remote-auto", "Local-only")
+GIT_COMPLETION_MODES = ("Auto", "Manual")
 GIT_REMOTE_CHOICES = ("existing", "create", "url", "local")
 LOCAL_SCOPES = ("AGENTS.md", "CLAUDE.md", "project.manifest.json", ".bootstrap",
                 "docs/project", ".agents/skills/project-interface", ".claude/skills/project-interface")
@@ -530,7 +531,7 @@ def new_remote_name(remotes):
 
 def configure_git(root, remote_setup=None, push_mode=None, repo_name=None,
                   repo_visibility="private", remote_url=None, remote_name=None,
-                  interactive=False, project_name=None):
+                  interactive=False, project_name=None, completion_mode=None):
     """Resolve remote and push intent. Creation never uploads local commits."""
     remotes = git_remotes(root)
     if remote_url and remote_setup is None:
@@ -561,7 +562,9 @@ def configure_git(root, remote_setup=None, push_mode=None, repo_name=None,
     if remote_setup == "url" and not remote_url and interactive:
         remote_url = input("输入 GitHub 仓库 URL（留空则稍后补充）: ").strip() or None
 
-    if push_mode is None:
+    if completion_mode in GIT_COMPLETION_MODES:
+        push_mode = "Local-only" if remote_setup == "local" else "Remote-auto"
+    elif push_mode is None:
         push_mode = git_choice("后续通过检查与 Merge Queue 后是否自动推送", GIT_PUSH_MODES,
                                "Local-only") if interactive else "Local-only"
     if push_mode not in GIT_PUSH_MODES:
@@ -786,6 +789,9 @@ def verify_install(target):
         raise ValueError("本地 Git 远端或推送策略无效；请恢复 AGENTS.md 中的配置")
     if state["version"] == 3 and f'Agent Document Mode: {state["agent_doc_mode"]}\n' not in agents:
         raise ValueError("文档写入方式与安装记录不同；重复 init 不用于切换方式")
+    if re.search(r"^Git Completion Mode:", agents, re.M) and not re.search(
+            r"^Git Completion Mode: (Auto|Manual|Unselected)$", agents, re.M):
+        raise ValueError("Git 交付配置无效；请恢复 Auto / Manual / Unselected")
     expected_config = local_config(root)
     if (home / "git.config").read_bytes() != expected_config:
         raise ValueError("本地 Git 排除配置被修改；请恢复安装配置")
@@ -954,7 +960,8 @@ def deinitialize(target, yes=False):
 def update_git_policy(root, bootstrap_mode, remote_status, push_mode, remote_name):
     path = root / (f"{LOCAL_HOME}/AGENTS.md" if bootstrap_mode == "Local-only" else "AGENTS.md")
     data = path.read_bytes()
-    text = data.decode("utf-8")
+    newline = "\r\n" if b"\r\n" in data else "\n"
+    text = data.decode("utf-8").replace("\r\n", "\n")
     text, remote_count = re.subn(r"^Git Remote Setup: (?:@@GIT_REMOTE_SETUP@@|Remote-pending|Remote-ready|Local-only)$",
                                 f"Git Remote Setup: {remote_status}", text, count=1, flags=re.M)
     text, push_count = re.subn(r"^Git Push Mode: (?:@@GIT_PUSH_MODE@@|Remote-auto|Local-only)$",
@@ -966,12 +973,12 @@ def update_git_policy(root, bootstrap_mode, remote_status, push_mode, remote_nam
                                    rf"\1\nGit Remote Name: {remote_name or 'none'}", text, count=1, flags=re.M)
     if remote_count != 1 or push_count != 1 or name_count != 1:
         raise ValueError("初始化配置缺少 Git 策略入口")
-    atomic_bytes(path, text.encode("utf-8"))
+    atomic_bytes(path, text.replace("\n", newline).encode("utf-8"))
 
 
 def continue_git_setup(root, bootstrap_mode, remote_setup=None, push_mode=None, repo_name=None,
                        repo_visibility=None, remote_url=None, remote_name=None, interactive=False,
-                       project_name=None):
+                       project_name=None, completion_mode=None):
     """Complete or update Git choices on an already installed project without reinstalling it."""
     path = root / (f"{LOCAL_HOME}/AGENTS.md" if bootstrap_mode == "Local-only" else "AGENTS.md")
     if not path.is_file():
@@ -981,7 +988,7 @@ def continue_git_setup(root, bootstrap_mode, remote_setup=None, push_mode=None, 
     push_match = re.search(r"^Git Push Mode: (Remote-auto|Local-only)$", text, re.M)
     if not status_match or not push_match:
         return False
-    has_request = any(value is not None for value in (remote_setup, push_mode, repo_name, remote_url, remote_name, repo_visibility))
+    has_request = any(value is not None for value in (remote_setup, push_mode, repo_name, remote_url, remote_name, repo_visibility, completion_mode))
     if not has_request and status_match[1] != "Remote-pending":
         return False
     if status_match[1] == "Remote-pending" and not has_request and not interactive:
@@ -992,7 +999,7 @@ def continue_git_setup(root, bootstrap_mode, remote_setup=None, push_mode=None, 
         remote_name = saved_name[1]
     status, selected_push, selected_remote = configure_git(root, remote_setup=remote_setup, push_mode=selected_push,
         repo_name=repo_name, repo_visibility=repo_visibility, remote_url=remote_url,
-        remote_name=remote_name, interactive=interactive, project_name=project_name)
+        remote_name=remote_name, interactive=interactive, project_name=project_name, completion_mode=completion_mode)
     name_match = re.search(r"^Git Remote Name: ([^\r\n]+)$", text, re.M)
     if status == status_match[1] and selected_push == push_match[1] and (selected_remote or "none") == (name_match[1] if name_match else "none"):
         return False
@@ -1005,9 +1012,9 @@ def git_setup_pending(root, bootstrap_mode):
     return path.is_file() and bool(re.search(r"^Git Remote Setup: Remote-pending$", path.read_text(encoding="utf-8"), re.M))
 
 
-def initialize(target, name, explicit=None, deployment_mode=None, interactive=False, bootstrap_mode=None,
+def _initialize(target, name, explicit=None, deployment_mode=None, interactive=False, bootstrap_mode=None,
                agent_doc_mode=None, git_remote_setup=None, git_push_mode=None, repo_name=None,
-               repo_visibility=None, remote_url=None, remote_name=None):
+               repo_visibility=None, remote_url=None, remote_name=None, git_completion_mode=None):
     if not (BASE / "templates/AGENTS.md").is_file():
         raise ValueError("init 需要完整 Bootstrap 源仓库；由 Agent 从源仓库执行")
     root = Path(os.path.abspath(target))
@@ -1043,17 +1050,17 @@ def initialize(target, name, explicit=None, deployment_mode=None, interactive=Fa
             already_installed = (root / LOCAL_HOME / "install-state.json").is_file()
             if already_installed:
                 has_git_request = any(value is not None for value in
-                    (git_remote_setup, git_push_mode, repo_name, repo_visibility, remote_url, remote_name))
+                    (git_remote_setup, git_push_mode, repo_name, repo_visibility, remote_url, remote_name, git_completion_mode))
                 if has_git_request or (interactive and git_setup_pending(root, bootstrap_mode)):
                     continue_git_setup(root, bootstrap_mode, git_remote_setup, git_push_mode, repo_name,
-                        repo_visibility, remote_url, remote_name, interactive, name)
+                        repo_visibility, remote_url, remote_name, interactive, name, completion_mode=git_completion_mode)
                     return 0
             count = initialize_local(root, name, explicit, deployment_mode, agent_doc_mode)
             if already_installed:
                 return count
             git_status, push_mode, remote_name = configure_git(root, remote_setup=git_remote_setup,
                 push_mode=git_push_mode, repo_name=repo_name, repo_visibility=repo_visibility,
-                remote_url=remote_url, remote_name=remote_name, interactive=interactive, project_name=name)
+                remote_url=remote_url, remote_name=remote_name, interactive=interactive, project_name=name, completion_mode=git_completion_mode)
             update_git_policy(root, bootstrap_mode, git_status, push_mode, remote_name)
             verify_install(root)
             return count
@@ -1067,15 +1074,16 @@ def initialize(target, name, explicit=None, deployment_mode=None, interactive=Fa
     saved = re.search(r"^Deployment Mode: (Local-first|Production-direct)$", saved_agents, re.M)
     saved_doc = re.search(r"^Agent Document Mode: (isolated|indexed)$", saved_agents, re.M)
     has_git_request = any(value is not None for value in
-        (git_remote_setup, git_push_mode, repo_name, repo_visibility, remote_url, remote_name))
+        (git_remote_setup, git_push_mode, repo_name, repo_visibility, remote_url, remote_name, git_completion_mode))
     same_modes = (not deployment_mode or not saved or deployment_mode == saved[1]) and (
         not agent_doc_mode or not saved_doc or agent_doc_mode == saved_doc[1])
-    if already_standard and same_modes and (has_git_request or (interactive and git_setup_pending(root, bootstrap_mode))):
+    if already_standard and same_modes:
         created_git = ensure_git_repository(root)
         try:
             preflight_git_selection(root, git_remote_setup, git_push_mode, remote_name, interactive)
             continue_git_setup(root, bootstrap_mode, git_remote_setup, git_push_mode, repo_name,
-                repo_visibility, remote_url, remote_name, interactive, name)
+                repo_visibility, remote_url, remote_name, interactive, name, completion_mode=git_completion_mode)
+            validate_map(validate_manifest(read_json(root / "project.manifest.json")), root / "docs/project/map.html")
         except Exception:
             if created_git:
                 shutil.rmtree(root / ".git", ignore_errors=True)
@@ -1136,12 +1144,12 @@ def initialize(target, name, explicit=None, deployment_mode=None, interactive=Fa
         raise
     if already_standard:
         continue_git_setup(root, bootstrap_mode, git_remote_setup, git_push_mode, repo_name,
-            repo_visibility, remote_url, remote_name, interactive, name)
+            repo_visibility, remote_url, remote_name, interactive, name, completion_mode=git_completion_mode)
         return len(created)
     try:
         git_status, push_mode, remote_name = configure_git(root, remote_setup=git_remote_setup,
             push_mode=git_push_mode, repo_name=repo_name, repo_visibility=repo_visibility,
-            remote_url=remote_url, remote_name=remote_name, interactive=interactive, project_name=name)
+            remote_url=remote_url, remote_name=remote_name, interactive=interactive, project_name=name, completion_mode=git_completion_mode)
         update_git_policy(root, bootstrap_mode, git_status, push_mode, remote_name)
     except Exception:
         for path in reversed(created):
@@ -1150,6 +1158,168 @@ def initialize(target, name, explicit=None, deployment_mode=None, interactive=Fa
             shutil.rmtree(root / ".git", ignore_errors=True)
         raise
     return len(created)
+
+
+def initialize(target, name, explicit=None, deployment_mode=None, interactive=False, bootstrap_mode=None,
+               agent_doc_mode=None, git_remote_setup=None, git_push_mode=None, repo_name=None,
+               repo_visibility=None, remote_url=None, remote_name=None, git_completion_mode=None):
+    """Record the complete delivery choice without performing task Git operations."""
+    root = Path(os.path.abspath(target))
+    path = root / (f"{LOCAL_HOME}/AGENTS.md" if (root / LOCAL_HOME).exists() else "AGENTS.md")
+    text = path.read_text(encoding="utf-8") if path.is_file() else ""
+    saved = re.search(r"^Git Completion Mode: (Auto|Manual|Unselected)$", text, re.M)
+    if git_completion_mode is not None and git_completion_mode not in GIT_COMPLETION_MODES:
+        raise ValueError("无效 Git 交付模式")
+    if git_completion_mode is not None and git_push_mode is not None:
+        raise ValueError("请只选择 --git-completion-mode；--git-push-mode 仅用于兼容旧流程")
+    choice = git_completion_mode or (saved[1] if saved else None)
+    installed = (root / LOCAL_HOME / "install-state.json").is_file() or (root / ".bootstrap/bootstrap.py").is_file()
+    selected_now = git_completion_mode is not None
+    if interactive and choice in (None, "Unselected") and git_push_mode is None:
+        choice = input("Git 交付：Auto 自动提交/PR/合并；Manual 提交并开 PR，等人合并（留空待选择）: ").strip() or "Unselected"
+        if choice not in (*GIT_COMPLETION_MODES, "Unselected"):
+            raise ValueError("Git 交付只能选择 Auto 或 Manual")
+        selected_now = choice in GIT_COMPLETION_MODES
+    if choice in GIT_COMPLETION_MODES and (not installed or selected_now):
+        if installed and not any((git_remote_setup, remote_url, remote_name, repo_name)):
+            selected_remote = re.search(r"^Git Remote Name: ([^\r\n]+)$", text, re.M)
+            remote_name = selected_remote[1] if selected_remote and selected_remote[1] != "none" else None
+            git_remote_setup = "existing" if remote_name else "local"
+    elif not installed and (not interactive or git_push_mode is None):
+        git_push_mode = git_push_mode or "Local-only"
+    if installed and saved and not selected_now and not any((git_remote_setup, git_push_mode, repo_name, remote_url, remote_name)):
+        interactive = False  # Answered choices are not repeated just because a remote is pending.
+    count = _initialize(root, name, explicit, deployment_mode, interactive, bootstrap_mode,
+                        agent_doc_mode, git_remote_setup, git_push_mode, repo_name,
+                        repo_visibility, remote_url, remote_name,
+                        choice if choice in GIT_COMPLETION_MODES and (not installed or selected_now or any((git_remote_setup, remote_url, remote_name, repo_name))) else None)
+    path = root / (f"{LOCAL_HOME}/AGENTS.md" if (root / LOCAL_HOME).exists() else "AGENTS.md")
+    data = path.read_bytes()
+    newline = "\r\n" if b"\r\n" in data else "\n"
+    text = data.decode("utf-8").replace("\r\n", "\n")
+    match = re.search(r"^Git Completion Mode: (Unselected|Auto|Manual)$", text, re.M)
+    if match:
+        updated = text[:match.start(1)] + (choice or "Unselected") + text[match.end(1):]
+    elif choice in GIT_COMPLETION_MODES:
+        updated = text + f"\nGit Completion Mode: {choice}\n"
+    else:
+        updated = text  # Old installations are not silently migrated.
+    if updated != text:
+        atomic_bytes(path, updated.replace("\n", newline).encode("utf-8"))
+    return count
+
+
+RECEIPT_BEGIN = "<!-- BEGIN Bootstrap Installation Receipt -->"
+RECEIPT_END = "<!-- END Bootstrap Installation Receipt -->"
+
+
+def installation_report(target, agent_report=None, verifier_report=None, verifier_ref=None):
+    """Summarize facts; only an external independent result can complete acceptance."""
+    root = Path(os.path.abspath(target))
+    local = (root / LOCAL_HOME).exists()
+    entry = check_target(root, f"{LOCAL_HOME}/AGENTS.md" if local else "AGENTS.md")
+    text = entry.read_text(encoding="utf-8")
+    def setting(key, default="未记录"):
+        match = re.search(rf"^{re.escape(key)}: ([^\r\n]+)$", text, re.M)
+        return match[1] if match else default
+    mode = setting("Git Completion Mode", "Legacy")
+    if mode not in (*GIT_COMPLETION_MODES, "Unselected", "Legacy"):
+        raise ValueError("Git 交付配置无效")
+    docs = root / (f"{LOCAL_HOME}/docs" if local else "docs/project")
+    path = check_target(root, str((docs / "installation-check.md").relative_to(root)))
+    previous = path.read_text(encoding="utf-8") if path.exists() else ""
+    if previous.count(RECEIPT_BEGIN) != previous.count(RECEIPT_END) or previous.count(RECEIPT_BEGIN) > 1:
+        raise ValueError("安装回执区块损坏；保留原文件，请修复标记")
+    technical = "通过"
+    try:
+        if local:
+            state = verify_install(root)
+            files = [root / LOCAL_HOME / name for name in local_sources() if (root / LOCAL_HOME / name).is_file()]
+            files += [root / LOCAL_HOME / "project.manifest.json", docs / "map.html"]
+            files += [root / name for name in entry_blocks(state)]
+        else:
+            files = [root / name for name in install_files()] + [root / "project.manifest.json", docs / "map.html"]
+            if any(not file.is_file() for file in files):
+                raise ValueError("安装文件缺失")
+            validate_map(validate_manifest(read_json(root / "project.manifest.json")), docs / "map.html")
+    except (OSError, ValueError):
+        technical = "未通过；运行 verify-install 或核对安装文件与地图"
+        files = [entry]
+    cached_agent = agent_report is None
+    if cached_agent:
+        from lowcost_agent import load
+        try:
+            agent_report = load(Path.home() / ".acpx/bootstrap-dsh.json")
+        except (OSError, ValueError):
+            agent_report = {"status": "unavailable"}
+    # Do not copy argv, credentials, provider errors, cwd or raw machine config.
+    agent_status = agent_report.get("status", "choice-required")
+    if agent_status not in ("ready", "skipped", "unavailable", "choice-required", "checking"):
+        agent_status = "unavailable"
+    versions = agent_report.get("versions", {})
+    versions_text = ", ".join(f"{key} {value}" for key, value in versions.items()
+                              if key in ("dsh", "acpx", "node") and isinstance(value, str)
+                              and re.fullmatch(r"v?\d+\.\d+\.\d+[\w.+-]*", value))
+    fingerprint = digest(b"".join(file.read_bytes() for file in files) + encode([agent_status, versions_text]).encode())
+    acceptance, reference, evidence = "PENDING", "未记录", "尚未收到独立 Installation Verifier 结果。"
+    if RECEIPT_BEGIN in previous:
+        old = previous.split(RECEIPT_BEGIN, 1)[1].split(RECEIPT_END, 1)[0]
+        if f"<!-- receipt-snapshot:{fingerprint} -->" in old:
+            match = re.search(r"独立验收： (PASS|REQUEST_CHANGES|PENDING)\n任务引用： ([^\n]+)\n```text\n(.*?)\n```", old, re.S)
+            if match:
+                acceptance, reference, evidence = match.groups()
+    if verifier_report is not None:
+        if not verifier_ref or any(char in verifier_ref for char in "\r\n`"):
+            raise ValueError("必须提供独立验收任务引用 --verifier-ref")
+        evidence = Path(verifier_report).read_text(encoding="utf-8-sig").strip()
+        acceptance = evidence.splitlines()[0] if evidence else ""
+        if acceptance not in ("PASS", "REQUEST_CHANGES") or "```" in evidence:
+            raise ValueError("验收文件必须是独立 Agent 的原始 PASS 或 REQUEST_CHANGES 结果")
+        reference = verifier_ref
+    complete = technical == "通过" and acceptance == "PASS"
+    status = "Bootstrap 基础初始化成功" if complete else "文件已落地，初始化验收未完成"
+    remote_name = setting("Git Remote Name", "none")
+    remotes = git_remotes(root)
+    remote = (f"{remote_name}（已登记，连接/推送/PR 权限未实测）" if remote_name in remotes
+              else "远端不可用或未选择；未同步远端")
+    behavior = {
+        "Auto": "自动提交任务改动、Review、队列检查、推送分支/创建并合并 PR、同步本地主分支、清理已交付分支。远端不可用则先完成本地合并并提醒。",
+        "Manual": "自动提交和 Review；远端可用时推送任务分支并创建 PR，随后等待人类合并。无远端保留本地提交和分支。",
+        "Unselected": "交付方式待选择；不授予自动提交/推送/PR/合并权限。",
+        "Legacy": "沿用旧 Git Push Mode 与人工合并约束；未授权新版完整自动交付。",
+    }[mode]
+    if setting("Git Push Mode") == "Local-only":
+        behavior += " 当前选择仅本地，不自动推送；Auto 完成本地合并，Manual 保留任务分支。"
+    agent_labels = {"ready": "上次已验证可用（本回执未重跑握手）" if cached_agent else "本次已验证可用", "skipped": "已跳过", "unavailable": "不可用", "choice-required": "待选择", "checking": "检查未完成"}
+    agent_next = "优先考虑简单只读任务，主 Agent 最终验收，不强制委派。" if agent_status == "ready" else (
+        "常规工作继续；需要时可在聊天中要求启用。" if agent_status in ("skipped", "choice-required") else
+        "常规工作继续；让 Agent 执行 agent setup 诊断并续跑。")
+    rows = [
+        ("规则与文档", f"{setting('Bootstrap Mode')} / {setting('Agent Document Mode')}", "规则、地图及回执路径见下方；沿用现有隔离/入库边界。"),
+        ("Git 交付", mode, behavior),
+        ("Git 远端", remote, "只有真实提交/PR/合并结果才能证明远端交付完成。"),
+        ("Review 与协作", "独立 Review + 串行 Merge Queue", "每个任务独立分支；主 Agent 推进到所选终点，不在 Review PASS 后无故结束。更严格原规则优先，安装 Agent 必须说明有效限制。"),
+        ("部署", setting("Deployment Mode"), "Local-first 不自动发布生产；Production-direct 仍须通过部署检查。"),
+        ("低成本 DSH Agent", agent_labels[agent_status] + (f"（{versions_text}）" if versions_text else ""), agent_next),
+        ("技术检查", technical, "技术通过不代替独立安装验收。"),
+        ("安装独立验收", acceptance, "独立 PASS 与技术检查均通过才完成基础安装；可选能力状态单独列出。"),
+    ]
+    def cell(value):
+        return str(value).replace("|", "\\|").replace("\n", " ")
+    section = f"{RECEIPT_BEGIN}\n# 初始化配置回执\n\n{status}\n\n| 配置项 | 实际状态 | 后续行为 |\n|---|---|---|\n"
+    section += "\n".join("| " + " | ".join(cell(value) for value in row) + " |" for row in rows)
+    section += f"\n\n规则入口：`{entry.relative_to(root).as_posix()}`；地图：`{(docs / 'map.html').relative_to(root).as_posix()}`。\n"
+    section += "服务端分支保护、CI 与托管队列：本工具未配置，是否生效由安装 Agent 核对说明。\n"
+    section += f"\n独立验收： {acceptance}\n任务引用： {reference}\n```text\n{evidence}\n```\n<!-- receipt-snapshot:{fingerprint} -->\n{RECEIPT_END}\n"
+    if RECEIPT_BEGIN in previous:
+        before, tail = previous.split(RECEIPT_BEGIN, 1)
+        after = tail.split(RECEIPT_END, 1)[1]
+        document = before + section.rstrip("\n") + after
+    else:
+        document = previous.rstrip() + ("\n\n" if previous else "") + section
+    path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_bytes(path, document.encode("utf-8"))
+    return section, path
 
 
 def main():
@@ -1169,6 +1339,8 @@ def main():
                       help="初始化远端：existing / create（GitHub CLI）/ url / local；TTY 下交互询问")
     init.add_argument("--git-push-mode", choices=GIT_PUSH_MODES,
                       help="独立推送策略：Remote-auto（仅 Merge Queue 门禁通过后）或 Local-only")
+    init.add_argument("--git-completion-mode", choices=GIT_COMPLETION_MODES,
+                      help="Auto 完整自动交付；Manual 提交/开 PR 后等待人合并；选择在聊天中完成")
     init.add_argument("--remote-name", help="已有 remote 名称；多个 remote 时必须选择")
     init.add_argument("--remote-url", help="用户提供的仓库 URL；只添加 remote，不推送")
     init.add_argument("--repo-name", help="GitHub 仓库名；可用 owner/name 指定 owner")
@@ -1191,6 +1363,10 @@ def main():
     deinit.add_argument("--yes", action="store_true", help="确认删除全部本地 Bootstrap 产物，含后续编辑")
     verify = commands.add_parser("verify-install", help="核对本地安装、刷新继承排除规则并验证地图")
     verify.add_argument("target", type=Path)
+    receipt = commands.add_parser("report-install", help="输出并保存配置回执；外部独立验收结果由安装 Agent 提供")
+    receipt.add_argument("target", type=Path)
+    receipt.add_argument("--verifier-report", type=Path)
+    receipt.add_argument("--verifier-ref", help="独立验收 Agent/任务引用；此工具不能证明身份，不替安装者签字")
     validate = commands.add_parser("validate", help="校验结构、引用和可选地图一致性")
     validate.add_argument("manifest", type=Path)
     validate.add_argument("--map", type=Path)
@@ -1206,7 +1382,7 @@ def main():
                                agent_doc_mode=args.agent_doc_mode, git_remote_setup=args.git_remote_setup,
                                git_push_mode=args.git_push_mode, repo_name=args.repo_name,
                                repo_visibility=args.repo_visibility, remote_url=args.remote_url,
-                               remote_name=args.remote_name)
+                               remote_name=args.remote_name, git_completion_mode=args.git_completion_mode)
             print(f"文件已落地：新增/接入 {count} 项。尚需安装 Agent 完成技术检查并启动独立子 Agent 验收；未 PASS 不得报告初始化完成")
             config_path = args.target / (f"{LOCAL_HOME}/AGENTS.md" if (args.target / LOCAL_HOME).exists() else "AGENTS.md")
             if config_path.is_file():
@@ -1222,7 +1398,9 @@ def main():
             except (OSError, ValueError, subprocess.TimeoutExpired):
                 report = {"ok": False, "status": "unavailable", "error": "OPTIONAL_AGENT_SETUP_FAILED",
                           "next": "主 Agent 继续常规 Bootstrap；修复本机配置访问后续跑 agent setup"}
-            print("可选低成本 Agent：" + json.dumps(report, ensure_ascii=False))
+            summary, receipt_path = installation_report(args.target, report)
+            print(summary)
+            print(f"配置回执：{receipt_path}")
         elif args.command == "agent":
             from lowcost_agent import configure, run as delegate
             if args.agent_command == "setup":
@@ -1235,6 +1413,11 @@ def main():
         elif args.command == "verify-install":
             verify_install(args.target)
             print("技术检查通过（安装、Git 隔离、地图一致性）；不代表独立子 Agent 验收通过")
+        elif args.command == "report-install":
+            summary, receipt_path = installation_report(args.target, verifier_report=args.verifier_report,
+                                                       verifier_ref=args.verifier_ref)
+            print(summary)
+            print(f"配置回执：{receipt_path}")
         elif args.command == "deinit":
             deinitialize(args.target, args.yes)
         else:

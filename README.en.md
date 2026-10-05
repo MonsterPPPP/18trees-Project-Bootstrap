@@ -222,11 +222,11 @@ The complete boundaries are recorded item by item in [docs/verification.md](docs
 
 Send this in the target project's Coding Agent chat:
 
-> Using this repository, initialize Project Bootstrap in the current project: `https://github.com/MonsterPPPP/18trees-Project-Bootstrap`. Check existing rules and production deployment configuration first. Ask separately about Git remote setup and push mode during initialization; do not stage or commit. Do not deploy to production when no production target exists. Ask before changing existing agent documents or configuring production release. Tell me how to use it after independent acceptance passes.
+> Using this repository, initialize Project Bootstrap in the current project: `https://github.com/MonsterPPPP/18trees-Project-Bootstrap`. Check existing rules and production deployment configuration first. Ask about the remote target and Auto / Manual delivery during initialization; do not stage or commit. Do not deploy to production when no production target exists. Ask before changing existing agent documents or configuring production release. Tell me how to use it after independent acceptance passes.
 
 The Agent reads [INSTALL.md](INSTALL.md) and checks for an existing production target:
 
-Initialization inspects Git and asks separately about remote setup and push mode. If the directory has no Git repository, it initializes local Git without staging or committing. The user can select an existing remote, create one with GitHub CLI, provide a URL, or keep the project local. Remote-auto pushes only after tests, independent Review, and Merge Queue; Local-only never pushes automatically. If GitHub CLI is unavailable, local installation can finish with remote setup pending; the Agent never invents a URL. Without a production target, the default is Local-first and does not deploy to production. If a production target exists, the Agent shows its URL, platform, and deployment entry before asking for ongoing Production-direct authorization. Isolated local entry points are the default; the Agent asks before adding tracked indexes. Incompatible existing rules stop installation before any target writes. After installation and technical checks, an independent sub-agent must
+Initialization asks in chat for the remote target and Auto / Manual delivery. Auto commits task changes, runs independent Review and queue checks, pushes the task branch, creates and merges the PR, and syncs the local main branch. Manual commits and opens the PR, then waits for a human to merge. With no usable remote, Auto completes local integration and reports remote delivery pending; Manual retains the local task branch. Recorded choices are reused. Initialization itself does not stage, commit, or upload files. A standard receipt explains the configuration, DSH availability, future behavior and pending checks. Local-first remains the default without a production target; production permissions and tracked indexes still need explicit authorization. An independent sub-agent must
 verify rule loading and workflow understanding. Only PASS completes initialization; initialization itself never deploys production.
 
 ### Prerequisites
@@ -257,7 +257,7 @@ After installation, continue in the same chat:
 1. **Understand the project** — "Tell me what this project can do and open the project map."
 2. **Request a change** — "Change the login failure message so users know how to retry."
 3. **Bound the scope** — "Only modify NODE:X; if other nodes need to be involved, stop and explain first."
-4. **Check the result** — "Tell me what was done and how to verify it." By default it queues for merge after independent Review passes; to merge yourself, add `require human merge`.
+4. **Check the result** — "Tell me what was done and how to verify it." Follow the recorded Auto / Manual delivery choice; to require a human merge for one task, add `require human merge`.
 5. **Exit** — "Remove the Bootstrap from the current project, keeping my task changes."
 
 See the [human manual](MANUAL.md) for details.
