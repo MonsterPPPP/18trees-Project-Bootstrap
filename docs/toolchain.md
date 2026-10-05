@@ -55,10 +55,12 @@ verify-install <目标> 核对本地状态、薄入口、模式、Git 排除和 
 新版 init 增加 --git-completion-mode Auto|Manual；新选择替代单独推送问询，不能和旧 --git-push-mode 同传。
 未选择记录 Unselected；旧参数/旧安装保持原授权。模式与选中 remote 写入项目协作入口，重复初始化不改选择。
 Auto/Manual 的 Git 操作由宿主 Agent 按 Gateway Flow 执行，不由初始化脚本提交或自动装队列服务。
+宿主 Agent 使用现有平台能力只读核对实际 PR 目标分支、有效保护/Ruleset、审批、检查、冲突、队列和权限；没有保护按 Bootstrap 门禁继续，查询失败记录未核对。必需审批、检查或队列等待不触发本地合并兜底；Auto 保留模式与 PR，恢复时重新检查，Manual/require human merge 保留人的最终合并责任。
 init 输出可读配置清单并保存 installation-check.md；report-install <目标> 可重新生成同一回执，不发模型请求。
 --verifier-report <原始结果文件> --verifier-ref <独立任务引用> 记录实际外部 PASS/REQUEST_CHANGES，不证明身份或代签。
 技术检查通过且独立 PASS 才显示基础初始化成功；入口、工具、manifest/map 与能力状态快照变化使旧验收失效。
 两种布局均分发入口；回执保留标记区块外人工安装记录，可选 DSH 状态与远端能力单独报告。
+init/report-install 不查询或配置远端保护，静态文案仅说明本工具未核对；安装 Agent 在同一回执区块外一次记录实际状态、有效要求与未核对项。成功任务不重复提醒未配置保护，只对实际阻碍首次出现、变化或需要行动报告。
 诊断冲突时目标项目零写入；无子 Agent、失败或未 PASS 保留未完成状态，不伪造结果。新增 worktree 也需接入并验收。
 map 的本地输出限制在 .project-bootstrap/docs/；后续生成物同样不能散落到任务目录。
 deinit <目标> 仅预览，确认后 --yes 删除专属目录、本次拥有的入口/索引区块与条件配置；保留原文、既有复用索引和其他配置。

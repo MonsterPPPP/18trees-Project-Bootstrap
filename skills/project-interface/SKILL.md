@@ -52,9 +52,12 @@ CLI 校验不证明语义证据正确，也不自动强制节点实现边界；�
 **Gateway Flow 角色路由**
 
 先读取当前协作入口 Git Completion Mode：Auto 必须继续到提交/PR/合并/同步/清理，不在 Review PASS 后结束或重复请求已有授权；Manual 提交并开 PR 后等人合并；Unselected 不授予完整交付，旧安装只沿用旧授权。
-先提交自己的任务改动，Review 绑定该 head；不得暂存用户其他修改。选中 remote 不可用时 Auto 完成本地队列合并及安全工作树同步，明确远端未同步；保留待远端交付分支。Manual 此时只留本地提交。恢复远端后重新同步检查，从任务分支交付 PR，不直接 push main。
+先提交自己的任务改动，Review 绑定该 head；不得暂存用户其他修改。确实无法访问选中 remote 或执行 PR 操作时 Auto 完成本地队列合并及安全工作树同步，明确远端未同步；保留待远端交付分支。审批、检查、冲突、队列等待不属于远端不可用，不能本地合并兜底；保护查询失败也不能单独触发兜底。Manual 无可用远端时只留本地提交。恢复远端后重新同步检查，从任务分支交付 PR，不直接 push main。
+宿主 Agent 只读核对实际 PR 目标分支、有效保护/Ruleset、head、审批、检查、冲突、队列和权限。查询失败记“未核对”，不能误报无保护；仅保护 API 不可读不停止交付，按可获得的 PR 门禁与平台操作继续判断，必要门禁无法确认或平台拒绝合并则保留 PR 并说明原因。
+Auto 等待必需审批时保存 PR 链接、head、分支和具体要求，保持 Auto，报告“等待必需审批”，不报告交付完成；子 Agent PASS 不替代远端审批。恢复时重新核对 head、最新主分支和门禁，不能无条件套用旧 head 的 PASS；主分支前移使旧集成结果失效。任务实现未变的无冲突同步可沿用 Review；实现改变或冲突适配重新测试、Review、入队。
+Manual 或有效 require human merge 始终等人最终合并，不启用自动合并；Auto 的审批满足后继续自动交付。只有已有平台队列/自动合并能保障最新主分支集成检查与全部有效门禁时才使用，否则下次 Agent 恢复时继续，不承诺持续监测。
 既有 require human merge、更严格原规则和生产约束优先。每次最终回复写已提交/PR/本地合并/远端合并/同步/分支清理的实际状态，未完成说明阻塞和续跑入口；不要以 Review PASS 代替交付完成。
-安装 Agent 必须在技术与独立安装验收后发送标准回执，用 report-install 保存既有 installation-check.md，展示配置、能力可用状态和后续行为；只有真实独立 PASS 才称基础初始化成功。
+安装 Agent 必须在技术与独立安装验收后发送标准回执，用 report-install 保存既有 installation-check.md，区块外一次记录保护状态、有效要求和未核对项，展示配置、能力可用状态和后续行为；只有真实独立 PASS 才称基础初始化成功。没有保护是正常状态，日常成功回执不重复提醒；实际阻碍首次出现、变化或需要用户行动时才说明具体要求。
 
 读取 `.bootstrap/interface-spec.md` 中完整的《Git Workflow（Gateway Flow）》与 Review Subagent 契约。
 按收到的角色工作；不得把 Reviewer 角色当成编码任务，也不能把 Coder 自审视为独立 Review。
@@ -63,7 +66,7 @@ CLI 校验不证明语义证据正确，也不自动强制节点实现边界；�
 2. 评审交接：启动全新、不继承会话的 Reviewer，只交付原始任务与验收、Semantic Node 与边界、当前 Diff（base/head）、对应测试结果、ponytail 与 Bootstrap 规范。不得夹带 Coder 推理或结论；Reviewer 证据不足时要求补足 Diff 上下文或测试结果。
 3. Review Agent：只读检查需求、Strict Node Boundary、最小实现、不必要复杂度/重构/依赖、测试风险、回归和必要的语义同步；只按契约输出 PASS 或 REQUEST_CHANGES，加原因与修改要求，不修改或合并。REQUEST_CHANGES 返回 Coder 修改、测试，再用新上下文 Review；硬边界受阻停止，连续三次修复失败检查假设。
 4. Merge Queue：Ready = 开发完成 + 本分支测试通过 + 当前 head Review PASS，先 Ready 先入队。默认自动串行合并；队首同步最新 main、检查冲突、重跑 Integration Checks，检查后 main 前移则重新验证。旧 PASS 不无条件授权 Merge；冲突/集成失败移出队列，交原 Coder 适配、测试、重新 Review、按新 Ready 顺序入队。前序任务未处理完时后续分支等待，不抢先解决未确定冲突；Reviewer 不参与修复。
-5. Human：下达任务与边界；明确 `require human merge` 时，PASS 后进入 WAIT_FOR_HUMAN_MERGE，不自动合并，也不免除最新 main 检查。否则人不承担重复 Review/Merge；由托管队列或一个协调 Agent 执行最终合并，合并后删除 Task Branch。main 必须受保护；缺独立评审、队列能力或权限时保留分支并报告，不能伪造已启用服务端保护。
+5. Human：下达任务与边界；Manual 或有效 `require human merge` 时，PASS 后进入 WAIT_FOR_HUMAN_MERGE，不自动合并，也不免除最新 main 检查。Auto 等待远端必需审批保留模式，满足后继续；人的平台审批不由独立 Review 替代。由托管队列或一个协调 Agent 执行最终集成，交付后删除 Task Branch。main 必须遵守项目流程，是否启用远端保护由项目决定，无保护仍按 Bootstrap 门禁交付；缺独立评审、队列能力或必要权限时保留分支并报告，不能伪造服务端状态。
 
 适配与冲突修复也服从 Strict Node Boundary，不自动包含子节点/依赖，不以改 metadata 扩权。
 本 skill 是行为契约，不自动安装 CI、配置服务端保护或创建常驻队列服务。

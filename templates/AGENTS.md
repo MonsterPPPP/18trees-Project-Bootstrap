@@ -14,8 +14,8 @@ Git Completion Mode: Unselected
 
 首次初始化在聊天中明确选择 Auto 或 Manual，保存后后续任务沿用，不重复询问。Auto 授权本任务提交、推送选中远端的任务分支、创建并合并 PR 和分支清理；Manual 授权提交、推送任务分支和创建 PR，最终等人合并。Unselected 表示待选择，不授予上述自动交付权限；旧版 Git Push Mode 授权只按旧协议执行，不静默扩大。
 Auto 必须由主 Agent 推进到交付终点，不在 Review PASS 后无故结束或再问是否提交。任务改动先提交到任务分支，独立 Review 绑定该 head；只暂存本任务内容，保留人的其他改动。Review PASS 后由协调 Agent 串行执行队列检查，远端可用时通过 PR 合并，核对远端合并提交并安全同步本地主分支及工作树；确认交付后清理任务分支。
-远端不可用或 PR 操作受阻时，Auto 仍通过本地队列检查并合并本地主分支，安全同步干净工作树，报告“本地已完成，远端未同步”及阻碍。远端待交付时保留任务分支、提交与续跑入口。Manual 此时保留本地提交和分支，不合并。Local-only 推送策略只做本地交付；不得猜 remote、覆盖未提交改动、强制推送或绕过现有门禁。
-Manual 或有效的 require human merge 在 PR 就绪后进入 WAIT_FOR_HUMAN_MERGE；人的最终合并仍须经过最新主分支集成检查。Auto 不授予生产发布权限；原项目更严格的有效约束继续适用，安装回执必须写明有效行为和阻碍。
+确实无法访问选中远端或执行 PR 操作时，Auto 仍通过本地队列检查并合并本地主分支，安全同步干净工作树，报告“本地已完成，远端未同步”及阻碍。远端待交付时保留任务分支、提交与续跑入口。审批、检查、冲突、队列等待不属于远端不可用，不能本地合并兜底；保护查询失败也不能单独触发兜底。Manual 无可用远端时保留本地提交和分支，不合并。Local-only 推送策略只做本地交付；不得猜 remote、覆盖未提交改动、强制推送或绕过现有门禁。
+Manual 或有效的 require human merge 在 PR 就绪后进入 WAIT_FOR_HUMAN_MERGE，不启用自动合并；人的最终合并仍须经过最新主分支集成检查。Auto 等待远端必需审批时保持 Auto，满足后继续自动交付。Auto 不授予生产发布权限；原项目更严格的有效约束继续适用，安装回执必须写明有效行为和阻碍。
 
 Git 配置是项目长期策略，不代表服务器已配置分支保护或托管 Merge Queue。Remote-auto 仅允许在测试、独立 Review、Merge Queue 最终检查通过后向 Git Remote Name 指定的远端推送；Coding Agent 不得直接 push main。Remote-pending 表示本地初始化已完成但远端尚未配置；Local-only 不自动推送。Git Remote Name 为 none 表示没有选定可推送远端。
 可选低成本子 Agent：主 Agent → acpx → 本机 DSH。机器选择未记录时安装 Agent 询问启用/跳过，已回答不重复询问；不可用不阻塞无关工作。
@@ -148,9 +148,13 @@ Coder 修改、Reviewer 判断、Merge Queue 串行化；人类默认不承担�
 
 **10. main 保护**
 
-main 为受保护分支，禁止 Coding Agent 直接 push；必须经过 Task Branch、Review Gate、必要测试，
-默认经 Merge Queue 合并，合并后删除 Task Branch。本 Bootstrap 不自动配置服务端保护或 CI；
-接入远端时按上述 gate 配置保护。缺 Reviewer、队列能力或权限时报告阻碍，不能绕过。
+main（或实际主分支）必须遵守项目流程，禁止 Coding Agent 直接 push；必须经过 Task Branch、Review Gate、必要测试，默认经 Merge Queue 串行集成合并，合并后删除 Task Branch。
+远端分支保护/Ruleset 是否启用由项目决定；没有保护时按 Bootstrap 门禁继续，不阻碍交付。缺 Reviewer、队列能力或必要权限时报告具体阻碍，不能绕过。本 Bootstrap 不自动创建、修改或绕过远端保护，也不安装 CI 或常驻队列服务。
+宿主 Agent 只读核对实际 PR 目标分支、有效保护/Ruleset、head、审批、检查、冲突、队列和权限。查询失败记“未核对”，不能误报无保护；仅保护 API 不可读不停止交付，仍依据可获得的 PR 门禁与平台操作判断，必要门禁无法确认或平台拒绝合并则保留 PR 并说明原因。
+Auto 遇到必需人工审批时报告“等待必需审批”，保存 PR 链接、head、分支及具体要求，保持 Auto，不报告交付完成；Review Subagent PASS 不替代远端审批。审批、检查或队列等待均不本地合并兜底。
+恢复时重新核对 PR head、最新主分支和门禁，不能无条件套用旧 head 的 PASS；主分支前移使旧集成结果失效。任务实现未变的无冲突同步可沿用 Review，实现改变或冲突适配须重新测试、独立 Review、入队。
+只有平台已有队列/自动合并能保障最新主分支集成检查与全部有效门禁时才使用；否则下次 Agent 恢复时继续，不承诺持续监测。Manual 和有效 require human merge 不启用自动合并。
+安装 Agent 在既有 installation-check.md 区块外一次记录保护状态、有效要求及未核对项；日常成功回执不重复提醒没有保护。实际阻碍首次出现、变化或需要用户行动时说明具体要求，不重复询问已有授权。
 完整规范与可独立执行的评审包、PASS / REQUEST_CHANGES 样例见 `.bootstrap/interface-spec.md`。
 
 **Deployment · 项目长期配置**

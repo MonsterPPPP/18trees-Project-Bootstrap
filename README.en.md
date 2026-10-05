@@ -158,7 +158,7 @@ The full ten-section spec, the contract the Reviewer can execute independently, 
 
 All four merges are annotated with independent review; each one has its own task branch and its own set of commits.
 
-> Note: what this project delivers is a **behavioral spec**. It does not automatically configure branch protection, permissions, or CI / queue services on your hosting platform. Server-side enforcement must be configured by you on the remote — this is listed among the weaknesses below.
+> This project delivers a **behavioral spec**. It does not automatically configure branch protection, permissions, or CI / queue services on your hosting platform. Each project decides whether to enable remote protection; its absence does not block delivery through Bootstrap gates. The Agent checks the actual PR merge requirements.
 
 ### 3. Bringing in proven specs (as an integrator)
 
@@ -226,7 +226,7 @@ Send this in the target project's Coding Agent chat:
 
 The Agent reads [INSTALL.md](INSTALL.md) and checks for an existing production target:
 
-Initialization asks in chat for the remote target and Auto / Manual delivery. Auto commits task changes, runs independent Review and queue checks, pushes the task branch, creates and merges the PR, and syncs the local main branch. Manual commits and opens the PR, then waits for a human to merge. With no usable remote, Auto completes local integration and reports remote delivery pending; Manual retains the local task branch. Recorded choices are reused. Initialization itself does not stage, commit, or upload files. A standard receipt explains the configuration, DSH availability, future behavior and pending checks. Local-first remains the default without a production target; production permissions and tracked indexes still need explicit authorization. An independent sub-agent must
+Initialization asks in chat for the remote target and Auto / Manual delivery. Auto commits task changes, runs independent Review and queue checks, pushes the task branch, creates and merges the PR, and syncs the local main branch. If remote rules require human approval, Auto retains its mode and PR, then rechecks the gates and continues after approval. Manual commits and opens the PR, then waits for a human's final merge without enabling automatic merge. With no usable remote, Auto completes local integration and reports remote delivery pending; Manual retains the local task branch. Approval, check or queue waits never trigger that local fallback. Recorded choices are reused. Initialization itself does not stage, commit, or upload files. A standard receipt explains the configuration, DSH availability, future behavior and pending checks. Local-first remains the default without a production target; production permissions and tracked indexes still need explicit authorization. An independent sub-agent must
 verify rule loading and workflow understanding. Only PASS completes initialization; initialization itself never deploys production.
 
 ### Prerequisites
