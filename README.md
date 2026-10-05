@@ -221,7 +221,7 @@ REQUEST_CHANGES
 
 在目标项目的 Coding Agent 对话框里发：
 
-> 请根据这个仓库，在当前项目初始化 Project Bootstrap：`https://github.com/MonsterPPPP/18trees-Project-Bootstrap`。先检查现有规则和生产部署配置；初始化时分别询问 Git 远端设置和推送策略，不要暂存或提交。没有生产目标时不部署生产；需要修改原 Agent 文档或配置生产发布时再让我确认。完成独立验收后告诉我怎么使用。
+> 请根据这个仓库，在当前项目初始化 Project Bootstrap：`https://github.com/MonsterPPPP/18trees-Project-Bootstrap`。先检查现有规则和生产部署配置；初始化时询问远端目标和 Auto / Manual 交付方式，不要暂存或提交。没有生产目标时不部署生产；需要修改原 Agent 文档或配置生产发布时再让我确认。完成独立验收后告诉我怎么使用。
 
 Agent 会读 [INSTALL.md](INSTALL.md)，先识别生产目标和现有规则：
 
