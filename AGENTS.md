@@ -36,6 +36,8 @@ Reviewer 按 STS 五项审查，只报告不改代码；证据足够后不额外
 
 Deployment Mode: Local-first
 
+Git Completion Mode: Auto
+
 初始化配置回执与 Git Auto/Manual 规范见 docs/interface-spec.md；本仓库源码不运行 init。
 本仓库当前既有 Gateway Flow 与用户已授权的提交、推送、合并继续有效；不能在 Review PASS 后无故停在未交付状态。
 
