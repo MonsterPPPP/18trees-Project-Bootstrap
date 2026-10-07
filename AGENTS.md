@@ -22,6 +22,7 @@ Bootstrap Mode: Standard
 Engineering Protocol 同时使用 Ponytail + [Stop That Shit](https://github.com/lennney/stop-that-shit) + Semantic Boundary。
 采用完成需求所需的最小充分修改，必要调用方、迁移与测试不能省略；禁止无需求扩张与重复工作。
 Reviewer 按 STS 五项审查，只报告不改代码；证据足够后不额外启动重复确认 Agent。
+手工任务 worktree、合成项目和验收产物只放在本仓库内已确认被 Git 忽略的目录，优先 `.work/`；先核对仓库根、实际路径和忽略状态。没有安全位置就使用当前工作树的任务分支，不能安全切换则报告阻塞，不在仓库外建兄弟目录。
 
 长期规则写入本文件或规范文档。完成有效任务后判断是否存在语义或结构变化；
 不按文件或 commit 自动同步地图。明确的 `只修改 NODE:X` 是硬边界。
@@ -31,6 +32,7 @@ Reviewer 按 STS 五项审查，只报告不改代码；证据足够后不额外
 `feat/<task>`、`fix/<task>`、`refactor/<task>` 或 `chore/<task>`，禁止 Coder 直接修改或 push main。
 完成实现与测试后自动启动独立干净上下文的 Review Subagent；Reviewer 只判断，不修改。
 默认 PASS 后由 Merge Queue 按 Ready 顺序串行同步最新 main、运行集成检查并合并，随后删除任务分支。
+交付后保存必要结论，核对归属与未提交内容，注销不用的 worktree、删除本任务合成目录，并核对 Git 工作树登记和物理路径；等待中的必要目录留在仓库内并说明。
 冲突或集成失败交原 Coder 适配、测试、重新 Review、重新入队；后续分支等待前序处理结果。
 Manual 或有效 `require human merge` 才等待人最终合并，不启用自动合并；Auto 遇到远端必需审批时报告“等待必需审批”，保留 Auto、PR 和分支，满足后重新核对并继续，不以本地合并兜底。
 主分支必须遵守 Gateway Flow；远端分支保护/Ruleset 由项目决定，未设置是正常状态，不阻止交付或在成功回执中重复提醒。宿主 Agent 按接口规范只读核对实际 PR 门禁；查询失败记“未核对”，不误报无保护，也不单因保护 API 不可读停止交付。

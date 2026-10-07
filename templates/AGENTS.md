@@ -92,6 +92,8 @@ Reviewer 将以下五项纳入既有 Review Gate，只报告 PASS / REQUEST_CHAN
 
 命名 `feat/<task>`、`fix/<task>`、`refactor/<task>`、`chore/<task>`；一个分支一个明确任务，
 生命周期尽可能短，合并后删除。按 ponytail 将修改限制在最小语义范围，继续遵守 Strict Node Boundary。
+手工任务 worktree、合成项目和验收产物须放在当前仓库内已被 Git 忽略的目录，优先 `.work/`；先核对仓库根、实际路径与忽略结果。无安全位置则用当前工作树的任务分支；不能安全切换就报告阻塞，不在仓库外建兄弟目录，也不为此擅改 Local-only 项目的 `.gitignore`。
+交付后先保存必要结论并核对提交、PR、目录归属与未提交内容，再用 `git worktree remove` 注销不用的工作树、删除本任务合成目录；用 `git worktree list` 和路径检查确认。等待合并或审批时仅保留续跑所需分支、PR 与仓库内工作目录，说明保留原因；不强制清理不明文件。
 
 **3. 自动 Code Review**
 

@@ -80,6 +80,8 @@ class BootstrapTests(unittest.TestCase):
             self.assertEqual(selected_install(project, "空项目", bootstrap_mode="Standard"), 0)
             self.assertEqual(before, {p.relative_to(project): (p.read_bytes(), p.stat().st_mtime_ns) for p in project.rglob("*") if p.is_file()})
             self.assertEqual((project / ".agents/skills/project-interface/SKILL.md").read_bytes(), (project / ".claude/skills/project-interface/SKILL.md").read_bytes())
+            self.assertIn("git worktree remove", (project / "AGENTS.md").read_text(encoding="utf-8"))
+            self.assertIn("只放仓库内已忽略目录", (project / ".agents/skills/project-interface/SKILL.md").read_text(encoding="utf-8"))
             manifest = project / "project.manifest.json"
             manifest.write_text(app.encode(self.example), encoding="utf-8")
             command = [sys.executable, str(project / ".bootstrap/bootstrap.py")]

@@ -74,6 +74,8 @@ class LocalOnlyTests(unittest.TestCase):
             before_diff = git(root, "diff")
             with patch("builtins.input", side_effect=AssertionError("no prompts")):
                 selected_install(root, "合成", interactive=True)
+            self.assertIn("git worktree remove", (bundle(root) / "AGENTS.md").read_text(encoding="utf-8"))
+            self.assertIn("只放仓库内已忽略目录", (bundle(root) / "skills/project-interface/SKILL.md").read_text(encoding="utf-8"))
             self.assertEqual(git(root, "status", "--porcelain"), b" M task.txt\n")
             self.assertEqual(git(root, "diff"), before_diff)
             self.assertEqual(git(root, "diff", "--cached"), b"")
